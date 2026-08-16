@@ -1,0 +1,11 @@
+node_modules
+dist
+*.log
+
+# Local database — contains your Dhan credentials. Never commit.
+data/
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+.env
+.env.*
