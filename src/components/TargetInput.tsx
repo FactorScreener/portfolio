@@ -384,6 +384,23 @@ function CsvEntry({
     return capAt5Pct ? applyCap(normalised) : normalised;
   })();
 
+  // Weight first, so the biggest names lead — dropped rows sink to the bottom.
+  const sortedRows = sheet.rows
+    .map((r, i) => ({
+      r,
+      key: i,
+      symbol: String(r[sheet.symbolColumn] ?? "").trim().toUpperCase(),
+    }))
+    .sort((a, b) => {
+      const wa = weightBySymbol.get(a.symbol) ?? -1;
+      const wb = weightBySymbol.get(b.symbol) ?? -1;
+      return wb - wa || a.symbol.localeCompare(b.symbol);
+    });
+  const half = Math.ceil(sortedRows.length / 2);
+  const sides = [sortedRows.slice(0, half), sortedRows.slice(half)].filter(
+    (rows) => rows.length > 0,
+  );
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
       <div className="row" style={{ gap: 8 }}>
@@ -450,31 +467,32 @@ function CsvEntry({
         </div>
       )}
 
-      <div className="table-wrap table-wrap-full">
-        <table className="data">
-          <thead>
-            <tr>
-              <th>{sheet.symbolColumn}</th>
-              {weightColumn && <th>{weightColumn}</th>}
-              <th>{capAt5Pct ? "Weight · capped 5%" : "Weight"}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {sheet.rows.map((r, i) => {
-              const symbol = String(r[sheet.symbolColumn] ?? "").trim().toUpperCase();
-              const w = weightBySymbol.get(symbol);
-              return (
-                <tr key={i}>
-                  <td className="sym">{symbol}</td>
-                  {weightColumn && <td>{r[weightColumn]}</td>}
-                  <td className={w ? "tnum" : "tnum muted"}>
-                    {w ? `${(w * 100).toFixed(2)}%` : "—"}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+      <div className="table-wrap table-wrap-full table-split">
+        {sides.map((rows, ci) => (
+          <table className="data" key={ci}>
+            <thead>
+              <tr>
+                <th>{sheet.symbolColumn}</th>
+                {weightColumn && <th>{weightColumn}</th>}
+                <th>Weight</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map(({ r, key, symbol }) => {
+                const w = weightBySymbol.get(symbol);
+                return (
+                  <tr key={key}>
+                    <td className="sym">{symbol}</td>
+                    {weightColumn && <td>{r[weightColumn]}</td>}
+                    <td className={w ? "tnum" : "tnum muted"}>
+                      {w ? `${(w * 100).toFixed(2)}%` : "—"}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        ))}
       </div>
     </div>
   );

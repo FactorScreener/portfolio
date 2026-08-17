@@ -968,6 +968,39 @@ body {
   max-height: none;
 }
 
+/* The basket preview is short per row, so it runs as two side-by-side tables
+   instead of one tall, mostly-empty strip. Falls back to one column on narrow
+   screens. */
+.table-split {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+
+.table-split table {
+  min-width: 0;
+}
+
+.table-split table + table {
+  border-left: 1px solid var(--hairline);
+}
+
+/* Sticky first cells only make sense while one table scrolls inside the wrap;
+   in the split layout the wrap is the scroller and the cells would jump. */
+.table-split th:first-child,
+.table-split td:first-child {
+  position: static;
+}
+
+@media (max-width: 900px) {
+  .table-split {
+    grid-template-columns: 1fr;
+  }
+  .table-split table + table {
+    border-left: none;
+    border-top: 1px solid var(--hairline);
+  }
+}
+
 table.data {
   width: 100%;
   border-collapse: separate;
