@@ -145,7 +145,7 @@ export function App() {
               <span className="section-spacer" />
               <TreemapLegend />
             </div>
-            <div className="card" style={{ padding: 12 }}>
+            <div className="card full-bleed" style={{ padding: "12px 0" }}>
               {overview ? (
                 <Treemap holdings={overview.holdings} />
               ) : (

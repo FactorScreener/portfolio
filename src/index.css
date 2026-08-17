@@ -137,6 +137,11 @@ body {
   padding: 0;
 }
 
+html,
+body {
+  overflow-x: clip;
+}
+
 body {
   background: var(--page);
   color: var(--ink);
@@ -203,6 +208,21 @@ body {
 
 .section {
   margin-top: 28px;
+}
+
+/* Break a child out of the shell's 1320px cap so it can span the full
+   viewport. `overflow-x: clip` on <html> swallows the scrollbar's share
+   of 100vw so the page never scrolls sideways. */
+.full-bleed {
+  width: 100vw;
+  margin-left: calc(50% - 50vw);
+}
+
+/* Flush against the viewport, so the card's own border and rounded corners
+   would be clipped at the edges — drop them so the plot runs edge to edge. */
+.card.full-bleed {
+  border: none;
+  border-radius: 0;
 }
 
 .section-head {
@@ -857,12 +877,10 @@ body {
 .treemap {
   position: relative;
   width: 100%;
-  border-radius: var(--r-lg);
   overflow: hidden;
 }
 
-/* Tiles are square-cornered so the mosaic reads as one block; only the
-   treemap's own four outer corners are rounded, by the wrapper's clip. */
+/* Tiles are square-cornered so the mosaic reads as one block. */
 .tm-cell {
   position: absolute;
   overflow: hidden;
