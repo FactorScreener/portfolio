@@ -1,6 +1,7 @@
 import { applyCap, CAP, normalise } from "../shared/weights.ts";
-import type { DhanHolding } from "./dhan.ts";
+import type { DhanHolding, DhanPosition } from "./dhan.ts";
 import { resolve, type Instrument } from "./instruments.ts";
+import { buildExposure, nonEquityPositions } from "./portfolio.ts";
 import { getQuotes, type Quote } from "./quotes.ts";
 
 export type Side = "BUY" | "SELL";
@@ -31,7 +32,13 @@ export type PlanRow = {
   securityId: string | null;
   price: number | null;
   priceSource: "dhan" | "yahoo" | null;
+  /** Settled holding + today's open position — the real exposure. */
   currentQty: number;
+  /** The holdings-feed slice of `currentQty`. */
+  holdingQty: number;
+  /** The open-position slice of `currentQty`; negative if sold today. */
+  positionQty: number;
+  /** What a CNC sell can actually deliver today. */
   availableQty: number;
   currentValue: number;
   targetWeight: number;
@@ -50,7 +57,10 @@ export type Plan = {
   side: Side;
   rows: PlanRow[];
   totals: {
-    holdingsValue: number;
+    /** Holdings plus open positions, marked to market. */
+    portfolioValue: number;
+    /** The open-position slice of `portfolioValue`. */
+    positionsValue: number;
     availableCash: number;
     investableBase: number;
     /** Value of orders that will actually be sent. */
@@ -71,9 +81,19 @@ export type Plan = {
   };
 };
 
+/** Why a name with real exposure still cannot be sold today. */
+function blockedReason(d: PlanRow): string {
+  if (d.holdingQty <= 0 && d.positionQty > 0) {
+    return "Bought today in a non-delivery product";
+  }
+  if (d.holdingQty > 0 && d.positionQty < 0) return "Already sold today";
+  return "Shares not yet settled (T1)";
+}
+
 export async function buildPlan(
   req: PlanRequest,
   holdings: DhanHolding[],
+  positions: DhanPosition[] = [],
 ): Promise<Plan> {
   const warnings: string[] = [];
   const unresolved: string[] = [];
@@ -131,16 +151,31 @@ export async function buildPlan(
     }
   }
 
-  // ---- Prices ------------------------------------------------------------
-  const holdingBySymbol = new Map<string, DhanHolding>();
-  for (const h of holdings) {
-    holdingBySymbol.set(h.tradingSymbol.trim().toUpperCase(), h);
+  // ---- Current exposure --------------------------------------------------
+  // Holdings alone under-count: shares bought today sit in positions until
+  // they settle, and shares sold today are still in holdings.
+  const exposures = buildExposure(holdings, positions);
+
+  const untradeable = [...exposures.values()].filter((e) => e.hasUntradeablePosition);
+  if (untradeable.length > 0) {
+    warnings.push(
+      `${untradeable.map((e) => e.symbol).slice(0, 4).join(", ")}${untradeable.length > 4 ? ` +${untradeable.length - 4} more` : ""} hold ${[...new Set(untradeable.flatMap((e) => e.positionProducts))].filter((p) => p !== "CNC").join("/")} positions — they count toward your exposure, but this rebalancer only places CNC orders and cannot square them off.`,
+    );
+  }
+  const derivatives = nonEquityPositions(positions);
+  if (derivatives.length > 0) {
+    warnings.push(
+      `${derivatives.length} open F&O / non-cash position${derivatives.length > 1 ? "s are" : " is"} ignored — this rebalancer only works on the equity cash segment.`,
+    );
   }
 
-  const universe = new Set<string>([...holdingBySymbol.keys(), ...resolved.keys()]);
+  // ---- Prices ------------------------------------------------------------
+  const universe = new Set<string>([...exposures.keys(), ...resolved.keys()]);
   // Dhan's holdings feed already carries a real-time LTP, so Yahoo is only
-  // needed for names not currently held.
-  const needQuote = [...universe].filter((s) => !holdingBySymbol.has(s));
+  // needed for names with no settled holding behind them.
+  const needQuote = [...universe].filter(
+    (s) => !((exposures.get(s)?.lastTradedPrice ?? 0) > 0),
+  );
 
   let quotes = new Map<string, Quote>();
   try {
@@ -152,8 +187,8 @@ export async function buildPlan(
   const priceOf = (
     symbol: string,
   ): { price: number | null; source: "dhan" | "yahoo" | null } => {
-    const h = holdingBySymbol.get(symbol);
-    if (h && h.lastTradedPrice > 0) return { price: h.lastTradedPrice, source: "dhan" };
+    const e = exposures.get(symbol);
+    if (e && e.lastTradedPrice > 0) return { price: e.lastTradedPrice, source: "dhan" };
     const q = quotes.get(symbol);
     if (q && q.price > 0) return { price: q.price, source: "yahoo" };
     return { price: null, source: null };
@@ -171,14 +206,16 @@ export async function buildPlan(
   }
 
   // ---- Base --------------------------------------------------------------
-  let holdingsValue = 0;
-  for (const [s, h] of holdingBySymbol) {
-    const { price } = priceOf(s);
-    holdingsValue += h.totalQty * (price ?? h.lastTradedPrice ?? h.avgCostPrice);
+  let portfolioValue = 0;
+  let positionsValue = 0;
+  for (const [s, e] of exposures) {
+    const mark = priceOf(s).price ?? e.lastTradedPrice ?? e.avgCostPrice;
+    portfolioValue += e.totalQty * mark;
+    positionsValue += e.positionQty * mark;
   }
 
   const availableCash = Math.max(0, req.availableCash);
-  const investableBase = holdingsValue + availableCash;
+  const investableBase = portfolioValue + availableCash;
   const buffer = Math.min(0.2, Math.max(0, req.cashBufferPct));
   const targetWeightSum = [...weights.values()].reduce((s, v) => s + v, 0);
 
@@ -186,11 +223,11 @@ export async function buildPlan(
   const drafts: PlanRow[] = [];
 
   for (const symbol of [...universe].sort()) {
-    const h = holdingBySymbol.get(symbol);
+    const e = exposures.get(symbol);
     const inst = resolved.get(symbol)?.inst ?? resolve(symbol);
     const { price, source } = priceOf(symbol);
-    const currentQty = h?.totalQty ?? 0;
-    const availableQty = h?.availableQty ?? 0;
+    const currentQty = e?.totalQty ?? 0;
+    const availableQty = e?.sellableQty ?? 0;
     const currentValue = price !== null ? currentQty * price : 0;
     const targetWeight = weights.get(symbol) ?? 0;
     const targetValue = investableBase * targetWeight * (1 - buffer);
@@ -198,10 +235,12 @@ export async function buildPlan(
     drafts.push({
       symbol,
       name: inst?.name ?? null,
-      securityId: inst?.security_id ?? h?.securityId ?? null,
+      securityId: inst?.security_id ?? e?.securityId ?? null,
       price,
       priceSource: source,
       currentQty,
+      holdingQty: e?.holdingQty ?? 0,
+      positionQty: e?.positionQty ?? 0,
       availableQty,
       currentValue,
       targetWeight,
@@ -238,12 +277,12 @@ export async function buildPlan(
       const qty = Math.min(wanted, d.availableQty);
       if (qty <= 0) {
         d.action = "blocked";
-        d.skipped = "Shares not yet settled (T1)";
+        d.skipped = blockedReason(d);
         continue;
       }
       if (qty < wanted) {
         warnings.push(
-          `${d.symbol}: only ${d.availableQty} of ${wanted} shares are settled and sellable today.`,
+          `${d.symbol}: only ${d.availableQty} of ${wanted} shares can be delivered today (${d.holdingQty} held, ${d.positionQty > 0 ? `${d.positionQty} bought today` : "none bought today"}).`,
         );
       }
       const value = qty * d.price;
@@ -324,7 +363,8 @@ export async function buildPlan(
     side: req.side,
     rows,
     totals: {
-      holdingsValue,
+      portfolioValue,
+      positionsValue,
       availableCash,
       investableBase,
       tradeValue,

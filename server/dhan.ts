@@ -99,6 +99,32 @@ export function getHoldings(creds: Credentials) {
   return call<DhanHolding[]>(creds, "/holdings");
 }
 
+export type DhanPosition = {
+  dhanClientId: string;
+  tradingSymbol: string;
+  securityId: string;
+  positionType: "LONG" | "SHORT" | "CLOSED";
+  exchangeSegment: string;
+  productType: string;
+  buyAvg: number;
+  buyQty: number;
+  costPrice: number;
+  sellAvg: number;
+  sellQty: number;
+  /** buyQty − sellQty. Negative means net short. */
+  netQty: number;
+  realizedProfit: number;
+  unrealizedProfit: number;
+  dayBuyQty: number;
+  daySellQty: number;
+};
+
+/** Today's open positions, including anything bought today that has not yet
+ *  settled into the holdings feed. */
+export function getPositions(creds: Credentials) {
+  return call<DhanPosition[]>(creds, "/positions");
+}
+
 export type DhanFunds = {
   dhanClientId: string;
   availabelBalance: number;

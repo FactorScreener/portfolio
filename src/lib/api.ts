@@ -1,10 +1,14 @@
+/** One symbol's total exposure: settled holding plus today's open position. */
 export type Holding = {
   tradingSymbol: string;
-  securityId: string;
-  isin: string;
+  securityId: string | null;
+  isin: string | null;
   name: string | null;
   totalQty: number;
+  holdingQty: number;
+  positionQty: number;
   availableQty: number;
+  positionProducts: string[];
   avgCostPrice: number;
   price: number;
   prevClose: number | null;
@@ -14,6 +18,20 @@ export type Holding = {
   pnlPct: number;
   dayChange: number;
   dayChangePct: number;
+  realizedPnl: number;
+};
+
+export type Position = {
+  tradingSymbol: string;
+  securityId: string;
+  positionType: "LONG" | "SHORT" | "CLOSED";
+  exchangeSegment: string;
+  productType: string;
+  buyAvg: number;
+  sellAvg: number;
+  netQty: number;
+  realizedProfit: number;
+  unrealizedProfit: number;
 };
 
 export type Summary = {
@@ -24,6 +42,11 @@ export type Summary = {
   dayChange: number;
   dayChangePct: number;
   count: number;
+  holdingsCount: number;
+  positionsCount: number;
+  positionsValue: number;
+  realizedPnl: number;
+  ignoredPositions: number;
 };
 
 export type Pricing = {
@@ -45,6 +68,7 @@ export type Funds = {
 
 export type Overview = {
   holdings: Holding[];
+  positions: Position[];
   summary: Summary;
   pricing: Pricing;
   funds: Funds;
@@ -66,6 +90,8 @@ export type PlanRow = {
   price: number | null;
   priceSource: "dhan" | "yahoo" | null;
   currentQty: number;
+  holdingQty: number;
+  positionQty: number;
   availableQty: number;
   currentValue: number;
   targetWeight: number;
@@ -83,7 +109,8 @@ export type Plan = {
   side: "BUY" | "SELL";
   rows: PlanRow[];
   totals: {
-    holdingsValue: number;
+    portfolioValue: number;
+    positionsValue: number;
     availableCash: number;
     investableBase: number;
     tradeValue: number;

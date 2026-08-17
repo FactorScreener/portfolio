@@ -13,10 +13,18 @@ import {
   getFunds,
   getHoldings,
   getOrders,
+  getPositions,
   placeOrder,
   saveCredentials,
   type DhanHolding,
+  type DhanPosition,
 } from "./dhan.ts";
+import {
+  buildExposure,
+  nonEquityPositions,
+  openEquityPositions,
+  realizedToday,
+} from "./portfolio.ts";
 import {
   countInstruments,
   resolve,
@@ -94,20 +102,36 @@ api.delete("/settings", (c) => {
 
 // ---------------------------------------------------------------- overview
 
-type Enriched = DhanHolding & {
+type Enriched = {
+  tradingSymbol: string;
+  securityId: string | null;
+  isin: string | null;
+  name: string | null;
+  /** Settled holding + today's open position. */
+  totalQty: number;
+  holdingQty: number;
+  positionQty: number;
+  availableQty: number;
+  positionProducts: string[];
+  avgCostPrice: number;
   price: number;
+  prevClose: number | null;
   invested: number;
   currentValue: number;
   pnl: number;
   pnlPct: number;
   dayChange: number;
   dayChangePct: number;
-  prevClose: number | null;
-  name: string | null;
+  realizedPnl: number;
 };
 
-async function enrichHoldings(holdings: DhanHolding[]) {
-  const symbols = holdings.map((h) => h.tradingSymbol);
+/**
+ * One row per symbol across both feeds. Holdings alone miss anything bought
+ * today, and still count anything sold today — see server/portfolio.ts.
+ */
+async function enrichPortfolio(holdings: DhanHolding[], positions: DhanPosition[]) {
+  const exposures = buildExposure(holdings, positions);
+  const symbols = [...exposures.keys()];
   // Dhan gives a live LTP but no previous close, so Yahoo fills in the day
   // move. If Yahoo is unreachable the P&L numbers still work.
   let quotes = new Map<string, Awaited<ReturnType<typeof getQuotes>> extends Map<string, infer V> ? V : never>();
@@ -117,28 +141,42 @@ async function enrichHoldings(holdings: DhanHolding[]) {
     console.error("quotes:", (e as Error).message);
   }
 
-  const rows: Enriched[] = holdings
-    .filter((h) => h.totalQty > 0)
-    .map((h) => {
-      const sym = h.tradingSymbol.trim().toUpperCase();
-      const q = quotes.get(sym);
-      const price = h.lastTradedPrice > 0 ? h.lastTradedPrice : (q?.price ?? h.avgCostPrice);
-      const invested = h.totalQty * h.avgCostPrice;
-      const currentValue = h.totalQty * price;
+  const rows: Enriched[] = [...exposures.values()]
+    .filter((e) => e.totalQty !== 0)
+    .map((e) => {
+      const q = quotes.get(e.symbol);
+      const price = e.lastTradedPrice > 0 ? e.lastTradedPrice : (q?.price ?? e.avgCostPrice);
+      const currentValue = e.totalQty * price;
       const prevClose = q?.previousClose ?? null;
-      const dayChange = prevClose !== null ? (price - prevClose) * h.totalQty : 0;
+      // Settled stock moves with the day; today's trades are marked from their
+      // own fill, which is what Dhan's position P&L already measures.
+      const dayChange =
+        (prevClose !== null ? (price - prevClose) * e.holdingQty : 0) +
+        e.positionUnrealizedPnl +
+        e.realizedPnl;
       return {
-        ...h,
-        name: resolve(sym)?.name ?? null,
+        tradingSymbol: e.symbol,
+        securityId: e.securityId,
+        isin: e.isin,
+        name: resolve(e.symbol)?.name ?? null,
+        totalQty: e.totalQty,
+        holdingQty: e.holdingQty,
+        positionQty: e.positionQty,
+        availableQty: e.sellableQty,
+        positionProducts: e.positionProducts,
+        avgCostPrice: e.avgCostPrice,
         price,
         prevClose,
-        invested,
+        invested: e.invested,
         currentValue,
-        pnl: currentValue - invested,
-        pnlPct: invested > 0 ? ((currentValue - invested) / invested) * 100 : 0,
+        pnl: currentValue - e.invested,
+        pnlPct: e.invested > 0 ? ((currentValue - e.invested) / e.invested) * 100 : 0,
         dayChange,
+        // Against where the row started the day, not the per-share move — the
+        // two disagree once part of the exposure was bought intraday.
         dayChangePct:
-          prevClose !== null && prevClose > 0 ? ((price - prevClose) / prevClose) * 100 : 0,
+          currentValue - dayChange > 0 ? (dayChange / (currentValue - dayChange)) * 100 : 0,
+        realizedPnl: e.realizedPnl,
       };
     })
     .sort((a, b) => b.currentValue - a.currentValue);
@@ -147,6 +185,8 @@ async function enrichHoldings(holdings: DhanHolding[]) {
   const currentValue = rows.reduce((s, r) => s + r.currentValue, 0);
   const dayChange = rows.reduce((s, r) => s + r.dayChange, 0);
   const prevValue = currentValue - dayChange;
+  const openPositions = openEquityPositions(positions);
+  const positionsValue = rows.reduce((s, r) => s + r.positionQty * r.price, 0);
 
   const sample = [...quotes.values()];
   return {
@@ -159,6 +199,14 @@ async function enrichHoldings(holdings: DhanHolding[]) {
       dayChange,
       dayChangePct: prevValue > 0 ? (dayChange / prevValue) * 100 : 0,
       count: rows.length,
+      /** Names with a settled holding behind them. */
+      holdingsCount: rows.filter((r) => r.holdingQty > 0).length,
+      positionsCount: new Set(openPositions.map((p) => p.tradingSymbol.trim().toUpperCase())).size,
+      positionsValue,
+      /** Booked on today's closed quantity — not part of `pnl`. */
+      realizedPnl: realizedToday(positions),
+      /** F&O and other non-cash positions this app does not model. */
+      ignoredPositions: nonEquityPositions(positions).length,
     },
     pricing: {
       marketOpen: nseSessionOpen(),
@@ -178,9 +226,13 @@ async function enrichHoldings(holdings: DhanHolding[]) {
 api.get("/overview", async (c) => {
   const creds = requireCreds();
   await syncInstruments().catch(() => {});
-  const [holdings, funds] = await Promise.all([getHoldings(creds), getFunds(creds)]);
-  const enriched = await enrichHoldings(holdings);
-  return c.json({ ...enriched, funds });
+  const [holdings, positions, funds] = await Promise.all([
+    getHoldings(creds),
+    getPositions(creds),
+    getFunds(creds),
+  ]);
+  const enriched = await enrichPortfolio(holdings ?? [], positions ?? []);
+  return c.json({ ...enriched, positions: openEquityPositions(positions ?? []), funds });
 });
 
 // ---------------------------------------------------------------- instruments
@@ -228,12 +280,16 @@ api.post("/rebalance/plan", async (c) => {
   await syncInstruments().catch(() => {});
   const input = planSchema.parse(await c.req.json());
 
-  const [holdings, funds] = await Promise.all([getHoldings(creds), getFunds(creds)]);
+  const [holdings, positions, funds] = await Promise.all([
+    getHoldings(creds),
+    getPositions(creds),
+    getFunds(creds),
+  ]);
   const req: PlanRequest = {
     ...input,
     availableCash: input.availableCash ?? funds.availabelBalance,
   };
-  const plan = await buildPlan(req, holdings);
+  const plan = await buildPlan(req, holdings ?? [], positions ?? []);
   return c.json(plan);
 });
 

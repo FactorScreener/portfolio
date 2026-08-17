@@ -37,7 +37,7 @@ export function Treemap({ holdings }: { holdings: Holding[] }) {
   if (holdings.length === 0) {
     return (
       <div className="banner banner-info" style={{ justifyContent: "center" }}>
-        No holdings to plot.
+        Nothing to plot — no holdings or open positions.
       </div>
     );
   }
@@ -141,6 +141,12 @@ function TreemapTooltip({ hover }: { hover: NonNullable<Hover> }) {
           {h.totalQty} × {money(h.price)}
         </b>
       </div>
+      {h.positionQty !== 0 && (
+        <div className="tooltip-row">
+          <span>{h.positionQty > 0 ? "Bought today" : "Sold today"}</span>
+          <b>{Math.abs(h.positionQty)} shares</b>
+        </div>
+      )}
       <div className="tooltip-row">
         <span>Avg cost</span>
         <b>{money(h.avgCostPrice)}</b>

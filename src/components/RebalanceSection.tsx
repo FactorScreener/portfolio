@@ -307,7 +307,7 @@ export function RebalanceSection({
           {planning && !plan && (
             <div className="row sub" style={{ gap: 8 }}>
               <Spinner />
-              Pricing the basket against your holdings…
+              Pricing the basket against your current exposure…
             </div>
           )}
 

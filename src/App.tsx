@@ -10,7 +10,7 @@ import { Treemap, TreemapLegend } from "./components/Treemap.tsx";
 import { RebalanceSection } from "./components/RebalanceSection.tsx";
 import { Help, Spinner, Toasts, type Toast } from "./components/ui.tsx";
 
-/** Refresh holdings this often while NSE is trading. */
+/** Refresh holdings and positions this often while NSE is trading. */
 const LIVE_POLL_MS = 30_000;
 
 export function App() {
@@ -109,17 +109,17 @@ export function App() {
             </div>
           )}
 
-          {/* ------------------------------------------- 1. holdings overview */}
-          <section className="section" aria-label="Holdings overview">
+          {/* ------------------------------------------ 1. portfolio overview */}
+          <section className="section" aria-label="Portfolio overview">
             <div className="section-head">
-              <h2 className="section-title">Holdings</h2>
+              <h2 className="section-title">Portfolio</h2>
               <span className="section-spacer" />
               <span className="sub">{fetchedAt ? `Updated ${timeAgo(fetchedAt)}` : ""}</span>
               <button
                 className="icon-btn icon-btn-sm"
                 onClick={() => void loadOverview()}
                 disabled={loading}
-                aria-label="Refresh holdings"
+                aria-label="Refresh portfolio"
                 title="Refresh"
               >
                 {loading ? (
@@ -133,11 +133,12 @@ export function App() {
           </section>
 
           {/* --------------------------------------------------- 2. treemap */}
-          <section className="section" aria-label="Holdings treemap">
+          <section className="section" aria-label="Allocation treemap">
             <div className="section-head">
               <h2 className="section-title">Allocation</h2>
               <Help>
-                Each rectangle is one holding. Area is its current value; colour is
+                Each rectangle is one stock you are exposed to — settled holdings
+                plus today's open positions. Area is its current value; colour is
                 its overall return — deeper green for larger gains, deeper red for
                 larger losses.
               </Help>
@@ -159,8 +160,9 @@ export function App() {
               <h2 className="section-title">Rebalance</h2>
               <Help>
                 Give it the basket you want to hold. It compares that against your
-                Dhan holdings and works out the whole-share orders that move you
-                there, using your holdings plus available cash as the denominator.
+                current exposure — settled holdings plus today's open positions —
+                and works out the whole-share orders that move you there, using
+                that exposure plus available cash as the denominator.
               </Help>
             </div>
             <RebalanceSection

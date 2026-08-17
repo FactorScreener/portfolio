@@ -60,7 +60,7 @@ export function PlanTable({ plan }: { plan: Plan }) {
               <th>Order value</th>
               <th>Now</th>
               <th>Target</th>
-              <th>Held</th>
+              <th>Exposure</th>
             </tr>
           </thead>
           <tbody>
@@ -110,6 +110,14 @@ export function PlanTable({ plan }: { plan: Plan }) {
                   </td>
                   <td className="muted">
                     {r.currentQty ? `${r.currentQty} · ${moneyShort(r.currentValue)}` : "—"}
+                    {r.positionQty !== 0 && (
+                      <div className="sub">
+                        {r.holdingQty} held
+                        {r.positionQty > 0
+                          ? ` + ${r.positionQty} bought today`
+                          : ` − ${-r.positionQty} sold today`}
+                      </div>
+                    )}
                   </td>
                 </tr>
               );
@@ -131,7 +139,8 @@ export function PlanTable({ plan }: { plan: Plan }) {
 
       <div className="sub">
         ⁺ priced from Yahoo Finance (15 min delayed). Everything you already hold is
-        priced from Dhan in real time.
+        priced from Dhan in real time. Exposure counts settled holdings plus today's
+        open positions.
       </div>
     </div>
   );

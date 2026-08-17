@@ -69,8 +69,16 @@ export function OverviewSection({ data }: { data: Overview | null }) {
           value={money(s.currentValue)}
           help={
             <>
-              Quantity × last traded price, straight from Dhan's holdings feed —
-              real time while the market is open. {s.count} scrips.
+              Quantity × last traded price across {s.count} scrips — your settled
+              holdings plus today's open positions, so anything bought this
+              morning is already counted.
+              {s.positionsCount > 0 && (
+                <>
+                  {" "}
+                  {money(s.positionsValue)} of it sits in {s.positionsCount} open
+                  position{s.positionsCount === 1 ? "" : "s"}.
+                </>
+              )}
             </>
           }
         />
@@ -89,7 +97,9 @@ export function OverviewSection({ data }: { data: Overview | null }) {
           deltaPct={s.dayChangePct}
           help={
             <>
-              Measured against yesterday's close, which comes from Yahoo Finance.
+              Settled holdings are measured against yesterday's close, which comes
+              from Yahoo Finance; today's trades are measured from their own fill
+              price, booked and open both.
               {data.pricing.dayChangeAvailable === false &&
                 " Yahoo did not return a previous close, so this is incomplete."}
             </>
@@ -108,8 +118,42 @@ export function OverviewSection({ data }: { data: Overview | null }) {
           Withdrawable <b className="tnum" style={{ color: "var(--ink-2)" }}>{money(data.funds.withdrawableBalance)}</b>
         </span>
         <span>
-          Holdings <b style={{ color: "var(--ink-2)" }}>{s.count}</b>
+          Holdings <b style={{ color: "var(--ink-2)" }}>{s.holdingsCount}</b>
         </span>
+        {s.positionsCount > 0 && (
+          <span>
+            Open positions{" "}
+            <b style={{ color: "var(--ink-2)" }}>{s.positionsCount}</b>
+            <Help>
+              Today's trades, before they settle into holdings. They are counted in
+              every number above and in the rebalancer, so a stock you bought this
+              morning will not be bought again.
+            </Help>
+          </span>
+        )}
+        {s.realizedPnl !== 0 && (
+          <span>
+            Booked today{" "}
+            <b className={`tnum ${s.realizedPnl >= 0 ? "pos" : "neg"}`}>
+              {signed(s.realizedPnl)}
+            </b>
+            <Help>
+              Profit or loss locked in by today's closed quantity. It is part of
+              today's number but not of overall profit, which only marks what you
+              still hold.
+            </Help>
+          </span>
+        )}
+        {s.ignoredPositions > 0 && (
+          <span>
+            <b style={{ color: "var(--ink-2)" }}>{s.ignoredPositions}</b> F&amp;O
+            position{s.ignoredPositions === 1 ? "" : "s"} ignored
+            <Help>
+              This app only models the equity cash segment. Derivative, currency and
+              commodity positions are left out of every number here.
+            </Help>
+          </span>
+        )}
       </div>
     </>
   );
