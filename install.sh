@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Portfolio one-time installer for macOS and Linux.
-# Usage:  bash install.sh
+# Usage:  curl -fsSL https://factorscreener.com/install | bash
+# (Also works as a plain script: bash install.sh)
 set -euo pipefail
 
 REPO_ZIP="https://github.com/FactorScreener/portfolio/archive/refs/heads/master.zip"
@@ -50,7 +51,9 @@ echo "[1/5] Bun is ready."
 # ---- 2. Where to install -------------------------------------------------
 echo
 DEFAULT_DIR="$HOME/Downloads"
-read -r -p "[2/5] Press Enter for $DEFAULT_DIR, or type another folder: " APP_DIR || APP_DIR=""
+# Read from the terminal directly; stdin may be the script itself when
+# run as `curl ... | bash`.
+read -r -p "[2/5] Press Enter for $DEFAULT_DIR, or type another folder: " APP_DIR </dev/tty || APP_DIR=""
 APP_DIR="${APP_DIR:-$DEFAULT_DIR}"
 APP_DIR="${APP_DIR/#\~/$HOME}"
 mkdir -p "$APP_DIR"

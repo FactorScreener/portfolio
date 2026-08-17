@@ -18,8 +18,15 @@ The rebalance planner takes a target basket (typed, pasted, or CSV) and computes
 
 ### Windows
 
-1. Download [install.bat](https://raw.githubusercontent.com/FactorScreener/portfolio/master/install.bat) (right-click the link, Save link as).
-2. Double-click it. If Windows shows a "Windows protected your PC" warning, click **More info** > **Run anyway**.
+1. Open PowerShell (right-click the Start button > **Terminal** or **Windows PowerShell**).
+2. Run:
+   ```powershell
+   irm https://factorscreener.com/install.ps1 | iex
+   ```
+   From Command Prompt instead:
+   ```cmd
+   powershell -c "irm https://factorscreener.com/install.ps1 | iex"
+   ```
 3. Follow the prompts. The app is saved to your Downloads folder by default; you can choose another location when asked.
 4. Your browser opens at `http://localhost:8787`.
 
@@ -27,29 +34,28 @@ To start the app later, run the installer again; it updates to the latest versio
 
 ### macOS
 
-1. Download [install.sh](https://raw.githubusercontent.com/FactorScreener/portfolio/master/install.sh).
-2. Open Terminal and run:
+1. Open Terminal.
+2. Run:
    ```bash
-   cd ~/Downloads && bash install.sh
+   curl -fsSL https://factorscreener.com/install | bash
    ```
 3. Follow the prompts. Your browser opens at `http://localhost:8787`.
 
-To start the app later, run the installer again: `cd ~/Downloads && bash install.sh`. It updates to the latest version and starts the app.
+To start the app later, run the installer again: `curl -fsSL https://factorscreener.com/install | bash`. It updates to the latest version and starts the app.
 
 ### Linux
 
-1. Download [install.sh](https://raw.githubusercontent.com/FactorScreener/portfolio/master/install.sh).
-2. Run:
+1. Run:
    ```bash
-   cd ~/Downloads && bash install.sh
+   curl -fsSL https://factorscreener.com/install | bash
    ```
-3. Follow the prompts. Your browser opens at `http://localhost:8787`.
+2. Follow the prompts. Your browser opens at `http://localhost:8787`.
 
-To start the app later, run the installer again: `cd ~/Downloads && bash install.sh`. It updates to the latest version and starts the app.
+To start the app later, run the installer again: `curl -fsSL https://factorscreener.com/install | bash`. It updates to the latest version and starts the app.
 
 ### What the installer does
 
-1. Installs Bun if needed: `powershell -c "irm bun.sh/install.ps1|iex"` on Windows, `curl -fsSL https://bun.sh/install | bash` on macOS/Linux.
+1. Installs Bun if needed: `irm https://bun.sh/install.ps1 | iex` on Windows, `curl -fsSL https://bun.sh/install | bash` on macOS/Linux.
 2. Downloads the app into a folder named `FactorScreener.com Portfolio` in the location you confirmed (Downloads by default).
 3. Runs `bun install` and `bun run build`.
 4. Starts the app with `bun start` and opens your browser.
@@ -67,7 +73,7 @@ Dhan tokens expire after 24 hours. Open Settings and paste a fresh token on each
 ## Manual install
 
 1. Install Bun:
-   - Windows (PowerShell): `powershell -c "irm bun.sh/install.ps1|iex"`
+   - Windows (PowerShell): `irm https://bun.sh/install.ps1 | iex`
    - macOS/Linux: `curl -fsSL https://bun.sh/install | bash`
    - Close and reopen your terminal afterwards.
 2. Download the app: either the ZIP from the **Code** button on [github.com/FactorScreener/portfolio](https://github.com/FactorScreener/portfolio), or:
@@ -93,8 +99,7 @@ Dhan tokens expire after 24 hours. Open Settings and paste a fresh token on each
 | Problem | Fix |
 | --- | --- |
 | Browser can't reach the page | Wait a moment and refresh. Keep the server window open; closing it stops the app. |
-| Windows warns about the script | Click **More info** > **Run anyway**. |
-| Script was saved as `install.bat.txt` | Rename it to `install.bat`, then double-click. |
+| `irm` is not recognized | You are in Command Prompt, not PowerShell. Open PowerShell and run the command there. |
 | `bun` is not recognized | Close and reopen the terminal. The installer finds Bun on its own. |
 | Dhan says the token is invalid or expired | Tokens last 24 hours. Paste a fresh token in Settings. |
 | "Day change" column is empty | Day-change data comes from Yahoo Finance. P&L still works if it is unreachable. |
