@@ -21,8 +21,8 @@ export function Hero({
 
   return (
     <header className="hero">
-      {/* Swap public/Logo Name.svg to change the wordmark. */}
-      <img src="/Logo Name.svg" alt="Portfolio" className="hero-logo" />
+      {/* Swap public/Logo Name copy.svg to change the wordmark. */}
+      <img src="/Logo Name copy.svg" alt="Portfolio" className="hero-logo" />
 
       <nav className="hero-nav" aria-label="Main">
         <NavLink
