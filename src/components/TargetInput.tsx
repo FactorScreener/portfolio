@@ -13,6 +13,7 @@ import { applyCap, normalise } from "../../shared/weights.ts";
 import { api } from "../lib/api.ts";
 import { parseSheet, parseTickerText, toNumber, type Sheet } from "../lib/csv.ts";
 import { Dropdown } from "./Dropdown.tsx";
+import { TableRowSpot } from "./TableRowSpot.tsx";
 import { Help, SideSwitch, Spinner } from "./ui.tsx";
 
 export type TargetSource =
@@ -467,7 +468,7 @@ function CsvEntry({
         </div>
       )}
 
-      <div className="table-wrap table-wrap-full table-split">
+      <TableRowSpot className="table-wrap table-wrap-full table-split">
         {sides.map((rows, ci) => (
           <table className="data" key={ci}>
             <thead>
@@ -493,7 +494,7 @@ function CsvEntry({
             </tbody>
           </table>
         ))}
-      </div>
+      </TableRowSpot>
     </div>
   );
 }

@@ -1054,6 +1054,40 @@ table.data tbody tr:hover td:first-child {
   background: var(--surface-hover);
 }
 
+/* --- animated table hover -------------------------------------------------
+   Inside a spot wrap the flat row tint is off; one strip slides between rows
+   instead. It sits behind the grid so the row hairlines stay crisp over its
+   edges, and the pinned first column steps aside so the strip shows through
+   it too. */
+
+.table-spot {
+  position: relative;
+  isolation: isolate;
+}
+
+.table-spot table.data tbody tr:hover td,
+.table-spot table.data tbody tr:hover td:first-child {
+  background: transparent;
+}
+
+.table-spot table.data th:first-child,
+.table-spot table.data td:first-child {
+  position: static;
+}
+.table-spot table.data td:first-child {
+  background: transparent;
+}
+
+.table-row-spot {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: color-mix(in oklab, var(--ink) 4%, transparent);
+  will-change: transform, left, width, height;
+}
+
 .sym {
   font-weight: 600;
   letter-spacing: -0.1px;

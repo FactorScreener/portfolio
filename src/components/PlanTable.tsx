@@ -4,6 +4,7 @@ import { Alert02Icon } from "@hugeicons/core-free-icons";
 import type { Plan, PlanRow } from "../lib/api.ts";
 import { money, moneyShort, pct } from "../lib/format.ts";
 import { SideSwitch } from "./ui.tsx";
+import { TableRowSpot } from "./TableRowSpot.tsx";
 
 const TAGS: Record<PlanRow["action"], { label: string; cls: string }> = {
   buy: { label: "Buy", cls: "tag-buy" },
@@ -49,7 +50,7 @@ export function PlanTable({ plan }: { plan: Plan }) {
         </span>
       </div>
 
-      <div className="table-wrap table-wrap-full">
+      <TableRowSpot className="table-wrap table-wrap-full">
         <table className="data">
           <thead>
             <tr>
@@ -135,7 +136,7 @@ export function PlanTable({ plan }: { plan: Plan }) {
             )}
           </tbody>
         </table>
-      </div>
+      </TableRowSpot>
 
       <div className="sub">
         ⁺ priced from Yahoo Finance (15 min delayed). Everything you already hold is
