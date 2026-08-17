@@ -11,6 +11,33 @@ const GAP = 3;
 /** Half a gap between two tiles, nothing against the treemap's outer edge. */
 const inset = (edge: number, bound: number) => (Math.abs(edge - bound) < 0.5 ? 0 : GAP / 2);
 
+/** Shared offscreen canvas for measuring ticker widths, so labels can shrink to
+ *  fit a tile instead of trailing off into an ellipsis. */
+const measureText = (() => {
+  let ctx: CanvasRenderingContext2D | null | undefined;
+  return (text: string, size: number) => {
+    if (ctx === undefined) {
+      ctx =
+        typeof document === "undefined"
+          ? null
+          : document.createElement("canvas").getContext("2d");
+    }
+    if (!ctx) return text.length * size * 0.62;
+    ctx.font = `600 ${size}px "Google Sans", "Google Sans Text", system-ui, sans-serif`;
+    return ctx.measureText(text).width;
+  };
+})();
+
+const MIN_LABEL = 8;
+
+/** Largest size (≤ maxSize) at which `text` still fits inside `maxWidth`. */
+function fitTicker(text: string, maxWidth: number, maxSize: number) {
+  if (maxWidth <= 0) return MIN_LABEL;
+  const wid = measureText(text, maxSize);
+  if (wid <= maxWidth) return maxSize;
+  return Math.max(MIN_LABEL, Math.floor((maxSize * maxWidth) / wid));
+}
+
 export function Treemap({ holdings }: { holdings: Holding[] }) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
@@ -63,7 +90,8 @@ export function Treemap({ holdings }: { holdings: Holding[] }) {
           // alone, and a tiny one gets nothing but its tooltip.
           const showSym = w >= 46 && ht >= 24;
           const showPct = w >= 58 && ht >= 42;
-          const symSize = Math.max(10, Math.min(19, Math.round(Math.min(w / 5.4, ht / 3.4))));
+          const availW = Math.max(0, w - 10);
+          const symSize = showSym ? fitTicker(h.tradingSymbol, availW, Math.min(19, Math.floor(ht / 3.4))) : 0;
 
           return (
             <motion.div
@@ -94,7 +122,7 @@ export function Treemap({ holdings }: { holdings: Holding[] }) {
                 </span>
               )}
               {showPct && (
-                <span className="tm-pct" style={{ fontSize: Math.max(10, symSize - 5) }}>
+                <span className="tm-pct" style={{ fontSize: Math.max(8, symSize - 4) }}>
                   {pct(h.pnlPct, 1)}
                 </span>
               )}
