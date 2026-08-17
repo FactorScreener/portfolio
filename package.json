@@ -3,6 +3,7 @@
   "module": "server/index.ts",
   "type": "module",
   "private": true,
+  "license": "MIT",
   "scripts": {
     "dev": "concurrently -n server,web -c magenta,cyan \"bun --watch server/index.ts\" \"vite --host\"",
     "dev:server": "bun --watch server/index.ts",

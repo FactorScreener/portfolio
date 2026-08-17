@@ -118,3 +118,7 @@ bun run typecheck
 ```
 
 Stack: Bun, Hono, SQLite on the server; React 19, Vite on the client. Dhan API for orders and holdings; Yahoo Finance for day-change quotes.
+
+## License
+
+[MIT](LICENSE)
