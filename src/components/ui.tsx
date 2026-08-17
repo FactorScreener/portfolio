@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
@@ -14,12 +15,66 @@ import {
  */
 export function Help({ children, align = "left" }: { children: React.ReactNode; align?: "left" | "right" }) {
   const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLSpanElement>(null);
+  const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const popRef = useRef<HTMLSpanElement>(null);
+  const closeTimer = useRef<number | null>(null);
+
+  // The popover is portaled to <body>, so the button and popover are not
+  // siblings in the DOM. A single hover region isn't possible, so we track
+  // intent with a small grace period: leaving either element schedules a
+  // close, and entering the other cancels it. Without this the popover
+  // reopens when the pointer slides from the popover back onto the button
+  // and then sticks around forever.
+  const enter = () => {
+    if (closeTimer.current != null) {
+      clearTimeout(closeTimer.current);
+      closeTimer.current = null;
+    }
+    setOpen(true);
+  };
+  const leave = () => {
+    closeTimer.current = window.setTimeout(() => {
+      closeTimer.current = null;
+      setOpen(false);
+    }, 120);
+  };
+
+  useEffect(() => () => {
+    if (closeTimer.current != null) clearTimeout(closeTimer.current);
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!open) {
+      setPos(null);
+      return;
+    }
+    const btn = btnRef.current;
+    const pop = popRef.current;
+    if (!btn || !pop) return;
+    const b = btn.getBoundingClientRect();
+    const r = pop.getBoundingClientRect();
+    const margin = 8;
+    let left = align === "right" ? b.right - r.width : b.left;
+    left = Math.max(margin, Math.min(left, window.innerWidth - r.width - margin));
+    let top = b.bottom + margin;
+    if (top + r.height > window.innerHeight - margin) {
+      top = b.top - r.height - margin;
+    }
+    if (top < margin) top = margin;
+    setPos({ left, top });
+  }, [open, align, children]);
 
   useEffect(() => {
     if (!open) return;
     const onDown = (e: MouseEvent) => {
-      if (!ref.current?.contains(e.target as Node)) setOpen(false);
+      const t = e.target as Node;
+      if (btnRef.current?.contains(t) || popRef.current?.contains(t)) return;
+      if (closeTimer.current != null) {
+        clearTimeout(closeTimer.current);
+        closeTimer.current = null;
+      }
+      setOpen(false);
     };
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
     document.addEventListener("mousedown", onDown);
@@ -31,32 +86,44 @@ export function Help({ children, align = "left" }: { children: React.ReactNode; 
   }, [open]);
 
   return (
-    <span className="help" ref={ref}>
+    <span className="help">
       <button
+        ref={btnRef}
         type="button"
         className="help-btn"
         aria-label="More information"
         aria-expanded={open}
         onClick={() => setOpen((o) => !o)}
-        onMouseEnter={() => setOpen(true)}
+        onMouseEnter={enter}
+        onMouseLeave={leave}
       >
         <HugeiconsIcon icon={HelpCircleIcon} size={15} strokeWidth={2} />
       </button>
-      <AnimatePresence>
-        {open && (
-          <motion.span
-            className={`help-pop${align === "right" ? " help-pop-right" : ""}`}
-            role="tooltip"
-            initial={{ opacity: 0, y: -4, scale: 0.97 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -4, scale: 0.97 }}
-            transition={{ duration: 0.16, ease: [0.2, 0, 0, 1] }}
-            onMouseLeave={() => setOpen(false)}
-          >
-            {children}
-          </motion.span>
-        )}
-      </AnimatePresence>
+      {createPortal(
+        <AnimatePresence>
+          {open && (
+            <motion.span
+              ref={popRef}
+              className="help-pop"
+              role="tooltip"
+              style={{
+                left: pos?.left ?? 0,
+                top: pos?.top ?? 0,
+                visibility: pos ? "visible" : "hidden",
+              }}
+              initial={{ opacity: 0, y: -4, scale: 0.97 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -4, scale: 0.97 }}
+              transition={{ duration: 0.16, ease: [0.2, 0, 0, 1] }}
+              onMouseEnter={enter}
+              onMouseLeave={leave}
+            >
+              {children}
+            </motion.span>
+          )}
+        </AnimatePresence>,
+        document.body,
+      )}
     </span>
   );
 }

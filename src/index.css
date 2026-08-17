@@ -1477,10 +1477,8 @@ table.data tbody tr:hover td:first-child {
 /* Popovers open inside pills and table cells, which set `white-space: nowrap`
    and uppercase — all of that has to be reset or the copy runs out of the box. */
 .help-pop {
-  position: absolute;
-  top: calc(100% + 8px);
-  left: -8px;
-  z-index: 60;
+  position: fixed;
+  z-index: 9999;
   width: max-content;
   max-width: min(300px, calc(100vw - 32px));
   background: var(--surface);
@@ -1497,10 +1495,6 @@ table.data tbody tr:hover td:first-child {
   text-align: left;
   white-space: normal;
   overflow-wrap: anywhere;
-}
-.help-pop-right {
-  left: auto;
-  right: -8px;
 }
 
 /* ============================================================ misc */
