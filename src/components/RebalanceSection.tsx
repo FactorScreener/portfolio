@@ -12,7 +12,7 @@ import {
 import { api, type ExecuteResult, type Overview, type Plan } from "../lib/api.ts";
 import { toNumber } from "../lib/csv.ts";
 import { money } from "../lib/format.ts";
-import { Dialog, Help, Segmented, Spinner, Switch } from "./ui.tsx";
+import { Dialog, Help, SideSwitch, Spinner, Switch } from "./ui.tsx";
 import { PlanTable } from "./PlanTable.tsx";
 import { TargetInput, type TargetSource } from "./TargetInput.tsx";
 
@@ -61,7 +61,11 @@ export function RebalanceSection({
     setResult(null);
   }
 
-  async function preview() {
+  /**
+   * `over` lets a control that has just changed re-plan with its new value
+   * without waiting for the state update to land.
+   */
+  async function preview(over?: { capAt5Pct?: boolean }) {
     setPlanning(true);
     setResult(null);
     try {
@@ -69,7 +73,7 @@ export function RebalanceSection({
         side,
         targets,
         weightMode,
-        capAt5Pct,
+        capAt5Pct: over?.capAt5Pct ?? capAt5Pct,
         cashBufferPct: 0,
         minOrderValue: 0,
         ...(side === "BUY" && cash !== null && Number.isFinite(cash) ? { availableCash: cash } : {}),
@@ -119,7 +123,7 @@ export function RebalanceSection({
     <div className="card card-pad" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       {/* ---------------------------------------------------------- side */}
       <div className="row wrap" style={{ gap: 12 }}>
-        <Segmented
+        <SideSwitch
           name="Order side"
           value={side}
           onChange={(s) => {
@@ -127,8 +131,8 @@ export function RebalanceSection({
             invalidate();
           }}
           options={[
-            { value: "SELL", label: "Sell only", icon: ArrowDown01Icon },
-            { value: "BUY", label: "Buy only", icon: ArrowUp01Icon },
+            { value: "SELL", label: "Sell only", tone: "neg", icon: ArrowDown01Icon },
+            { value: "BUY", label: "Buy only", tone: "pos", icon: ArrowUp01Icon },
           ]}
         />
         <Help>
@@ -148,6 +152,7 @@ export function RebalanceSection({
           invalidate();
         }}
         notify={notify}
+        capAt5Pct={capAt5Pct}
       />
 
       {/* -------------------------------------------------------- weights */}
@@ -165,7 +170,10 @@ export function RebalanceSection({
             checked={capAt5Pct}
             onChange={(v) => {
               setCapAt5Pct(v);
-              invalidate();
+              // Re-price straight away so the table's Target column reflects the
+              // cap instead of blanking the plan out.
+              if (plan) void preview({ capAt5Pct: v });
+              else invalidate();
             }}
             label="Cap every weight at 5%"
           />
@@ -222,7 +230,11 @@ export function RebalanceSection({
 
       {/* -------------------------------------------------------- preview */}
       <div className="row wrap" style={{ gap: 10 }}>
-        <button className="btn btn-tonal" onClick={preview} disabled={!canPreview || planning}>
+        <button
+          className="btn btn-tonal"
+          onClick={() => void preview()}
+          disabled={!canPreview || planning}
+        >
           {planning ? <Spinner /> : <HugeiconsIcon icon={Recycle03Icon} size={17} strokeWidth={2} />}
           {planning ? "Calculating" : plan ? "Recalculate" : "Preview orders"}
         </button>
@@ -256,7 +268,7 @@ export function RebalanceSection({
           <motion.div
             key="plan"
             initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
+            animate={{ opacity: planning ? 0.45 : 1, y: 0 }}
             exit={{ opacity: 0, y: -4 }}
             transition={{ duration: 0.24, ease: [0.2, 0, 0, 1] }}
             style={{ display: "flex", flexDirection: "column", gap: 12 }}

@@ -14,7 +14,9 @@ const TAGS: Record<PlanRow["action"], { label: string; cls: string }> = {
 };
 
 export function PlanTable({ plan }: { plan: Plan }) {
-  const [filter, setFilter] = useState<"orders" | "all">("orders");
+  // Every row is on screen by default — the plan is easier to trust when the
+  // holds and blocks are visible next to the orders.
+  const [filter, setFilter] = useState<"orders" | "all">("all");
 
   const rows = useMemo(() => {
     const withOrders = plan.rows.filter((r) => r.side && r.quantity > 0);
@@ -47,7 +49,7 @@ export function PlanTable({ plan }: { plan: Plan }) {
         </span>
       </div>
 
-      <div className="table-wrap">
+      <div className="table-wrap table-wrap-full">
         <table className="data">
           <thead>
             <tr>

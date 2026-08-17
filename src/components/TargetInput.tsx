@@ -9,8 +9,10 @@ import {
   Tick02Icon,
   Upload04Icon,
 } from "@hugeicons/core-free-icons";
+import { applyCap, normalise } from "../../shared/weights.ts";
 import { api } from "../lib/api.ts";
 import { parseSheet, parseTickerText, toNumber, type Sheet } from "../lib/csv.ts";
+import { Dropdown } from "./Dropdown.tsx";
 import { Help, Segmented, Spinner } from "./ui.tsx";
 
 export type TargetSource =
@@ -21,10 +23,13 @@ export function TargetInput({
   source,
   onChange,
   notify,
+  capAt5Pct,
 }: {
   source: TargetSource;
   onChange: (s: TargetSource) => void;
   notify: (kind: "ok" | "err", text: string) => void;
+  /** Mirrored in the preview's weight column so the toggle has a visible effect. */
+  capAt5Pct: boolean;
 }) {
   const [tab, setTab] = useState<"tickers" | "csv">(source.kind);
 
@@ -63,6 +68,7 @@ export function TargetInput({
           }
           onClear={() => onChange({ kind: "tickers", symbols: [] })}
           notify={notify}
+          capAt5Pct={capAt5Pct}
         />
       )}
     </div>
@@ -280,6 +286,7 @@ function CsvEntry({
   onWeightColumn,
   onClear,
   notify,
+  capAt5Pct,
 }: {
   sheet: Sheet | null;
   weightColumn: string | null;
@@ -287,6 +294,7 @@ function CsvEntry({
   onWeightColumn: (c: string | null) => void;
   onClear: () => void;
   notify: (kind: "ok" | "err", text: string) => void;
+  capAt5Pct: boolean;
 }) {
   const [over, setOver] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -352,10 +360,25 @@ function CsvEntry({
     );
   }
 
-  const preview = sheet.rows.slice(0, 5);
   const usableRows = weightColumn
     ? sheet.rows.filter((r) => (toNumber(r[weightColumn]) ?? 0) > 0).length
     : sheet.rows.length;
+
+  // The share each ticker ends up with, run through the same normalise/cap the
+  // planner uses. Duplicate tickers are summed, exactly as the server does, so
+  // both rows of a repeated name show the combined weight.
+  const weightBySymbol = (() => {
+    const raw = new Map<string, number>();
+    for (const r of sheet.rows) {
+      const symbol = String(r[sheet.symbolColumn] ?? "").trim().toUpperCase();
+      if (!symbol) continue;
+      const v = weightColumn ? Math.max(0, toNumber(r[weightColumn]) ?? 0) : 1;
+      if (weightColumn && v <= 0) continue; // dropped by the planner
+      raw.set(symbol, (raw.get(symbol) ?? 0) + v);
+    }
+    const normalised = normalise(raw);
+    return capAt5Pct ? applyCap(normalised) : normalised;
+  })();
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
@@ -382,18 +405,13 @@ function CsvEntry({
           <label className="field-label" htmlFor="symcol">
             Ticker column
           </label>
-          <select
+          <Dropdown
             id="symcol"
-            className="select"
+            label="Ticker column"
             value={sheet.symbolColumn}
-            onChange={(e) => onSheet({ ...sheet, symbolColumn: e.target.value })}
-          >
-            {sheet.columns.map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
-            ))}
-          </select>
+            onChange={(c) => onSheet({ ...sheet, symbolColumn: c })}
+            options={sheet.columns.map((c) => ({ value: c, label: c }))}
+          />
         </div>
 
         <div className="field">
@@ -405,19 +423,16 @@ function CsvEntry({
               evenly instead.
             </Help>
           </label>
-          <select
+          <Dropdown
             id="wcol"
-            className="select"
+            label="Weight column"
             value={weightColumn ?? ""}
-            onChange={(e) => onWeightColumn(e.target.value || null)}
-          >
-            <option value="">Equal weight</option>
-            {sheet.numericColumns.map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
-            ))}
-          </select>
+            onChange={(c) => onWeightColumn(c || null)}
+            options={[
+              { value: "", label: "Equal weight", hint: "Split the basket evenly" },
+              ...sheet.numericColumns.map((c) => ({ value: c, label: c })),
+            ]}
+          />
           {sheet.numericColumns.length === 0 && (
             <span className="sub">No numeric columns found in this file.</span>
           )}
@@ -431,40 +446,29 @@ function CsvEntry({
         </div>
       )}
 
-      <div className="table-wrap" style={{ maxHeight: 216 }}>
+      <div className="table-wrap table-wrap-full">
         <table className="data">
           <thead>
             <tr>
               <th>{sheet.symbolColumn}</th>
               {weightColumn && <th>{weightColumn}</th>}
-              {weightColumn && <th>Weight</th>}
+              <th>{capAt5Pct ? "Weight · capped 5%" : "Weight"}</th>
             </tr>
           </thead>
           <tbody>
-            {preview.map((r, i) => {
-              const total = weightColumn
-                ? sheet.rows.reduce((s, x) => s + Math.max(0, toNumber(x[weightColumn]) ?? 0), 0)
-                : 0;
-              const v = weightColumn ? (toNumber(r[weightColumn]) ?? 0) : 0;
+            {sheet.rows.map((r, i) => {
+              const symbol = String(r[sheet.symbolColumn] ?? "").trim().toUpperCase();
+              const w = weightBySymbol.get(symbol);
               return (
                 <tr key={i}>
-                  <td className="sym">{String(r[sheet.symbolColumn] ?? "").toUpperCase()}</td>
+                  <td className="sym">{symbol}</td>
                   {weightColumn && <td>{r[weightColumn]}</td>}
-                  {weightColumn && (
-                    <td className="tnum">
-                      {total > 0 ? `${((Math.max(0, v) / total) * 100).toFixed(2)}%` : "—"}
-                    </td>
-                  )}
+                  <td className={w ? "tnum" : "tnum muted"}>
+                    {w ? `${(w * 100).toFixed(2)}%` : "—"}
+                  </td>
                 </tr>
               );
             })}
-            {sheet.rows.length > preview.length && (
-              <tr>
-                <td className="sub" colSpan={weightColumn ? 3 : 1}>
-                  +{sheet.rows.length - preview.length} more
-                </td>
-              </tr>
-            )}
           </tbody>
         </table>
       </div>

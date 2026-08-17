@@ -52,11 +52,7 @@ function Tile({
 export function OverviewSection({ data }: { data: Overview | null }) {
   if (!data) {
     return (
-      <div className="stat-grid">
-        {[0, 1, 2, 3].map((i) => (
-          <div key={i} className="skeleton" style={{ height: 122, borderRadius: 28 }} />
-        ))}
-      </div>
+      <div className="skeleton" style={{ height: 124, borderRadius: 28 }} />
     );
   }
 

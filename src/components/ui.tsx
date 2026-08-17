@@ -94,6 +94,60 @@ export function Switch({
   );
 }
 
+/* ------------------------------------------------------------ SideSwitch */
+
+/**
+ * Sell/Buy as one pill with a sliding thumb rather than two buttons: a run
+ * only ever sends one side, and a switch says "either/or" louder than a pair
+ * of buttons does. The thumb carries the side's colour so the choice reads
+ * from across the room.
+ */
+export function SideSwitch<T extends string>({
+  value,
+  options,
+  onChange,
+  name,
+}: {
+  value: T;
+  options: { value: T; label: string; tone: "pos" | "neg"; icon?: React.ComponentProps<typeof HugeiconsIcon>["icon"] }[];
+  onChange: (v: T) => void;
+  name: string;
+}) {
+  const index = Math.max(0, options.findIndex((o) => o.value === value));
+  const tone = options[index]?.tone ?? "pos";
+
+  return (
+    <div
+      className="side-switch"
+      role="radiogroup"
+      aria-label={name}
+      data-tone={tone}
+      style={{ ["--count" as string]: options.length }}
+    >
+      <motion.span
+        className="side-thumb"
+        aria-hidden
+        animate={{ x: `${index * 100}%` }}
+        transition={{ type: "spring", stiffness: 520, damping: 38, mass: 0.7 }}
+      />
+      {options.map((o) => (
+        <button
+          key={o.value}
+          type="button"
+          role="radio"
+          aria-checked={value === o.value}
+          data-on={value === o.value}
+          data-tone={o.tone}
+          onClick={() => onChange(o.value)}
+        >
+          {o.icon && <HugeiconsIcon icon={o.icon} size={16} strokeWidth={2.4} />}
+          <span>{o.label}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
 /* ------------------------------------------------------------- Segmented */
 
 export function Segmented<T extends string>({

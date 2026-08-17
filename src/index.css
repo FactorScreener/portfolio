@@ -5,25 +5,41 @@
 :root {
   color-scheme: light;
 
+  /* The one grey ramp both themes are built from. Nothing below picks a
+     neutral out of thin air — it maps a role onto a step of this scale. */
+  --neutral-50: oklch(98.5% 0 0);
+  --neutral-100: oklch(97% 0 0);
+  --neutral-200: oklch(92.2% 0 0);
+  --neutral-300: oklch(87% 0 0);
+  --neutral-400: oklch(70.8% 0 0);
+  --neutral-500: oklch(55.6% 0 0);
+  --neutral-600: oklch(43.9% 0 0);
+  --neutral-700: oklch(37.1% 0 0);
+  --neutral-800: oklch(26.9% 0 0);
+  --neutral-900: oklch(20.5% 0 0);
+  --neutral-950: oklch(14.5% 0 0);
+  /* One step past the ramp, for the dark backdrop the surfaces sit on. */
+  --neutral-1000: oklch(9% 0 0);
+
   --primary: #0b57d0;
   --on-primary: #ffffff;
   --primary-container: #d3e3fd;
   --on-primary-container: #041e49;
   --primary-hover: #0842a0;
 
-  --page: #f8fafd;
-  --surface: #ffffff;
-  --surface-2: #f0f4f9;
-  --surface-3: #e9eef6;
-  --surface-hover: #f4f7fc;
+  --page: var(--neutral-100);
+  --surface: var(--neutral-50);
+  --surface-2: var(--neutral-200);
+  --surface-3: var(--neutral-300);
+  --surface-hover: var(--neutral-100);
 
-  --ink: #1f1f1f;
-  --ink-2: #444746;
-  --ink-muted: #747775;
+  --ink: var(--neutral-900);
+  --ink-2: var(--neutral-700);
+  --ink-muted: var(--neutral-500);
 
-  --outline: #c4c7c5;
-  --outline-soft: #e3e3e0;
-  --hairline: rgba(31, 31, 31, 0.09);
+  --outline: var(--neutral-400);
+  --outline-soft: var(--neutral-200);
+  --hairline: oklch(20.5% 0 0 / 0.12);
 
   --pos: #146c2e;
   --pos-bg: #e6f4ea;
@@ -69,19 +85,21 @@
   --on-primary-container: #d3e3fd;
   --primary-hover: #c2ddff;
 
-  --page: #0e1116;
-  --surface: #171b21;
-  --surface-2: #1e232b;
-  --surface-3: #262b33;
-  --surface-hover: #212730;
+  /* Every surface role sits one step deeper than its light-mode counterpart,
+     so the page reads black and the cards stay legible against it. */
+  --page: var(--neutral-1000);
+  --surface: var(--neutral-950);
+  --surface-2: var(--neutral-900);
+  --surface-3: var(--neutral-800);
+  --surface-hover: var(--neutral-900);
 
-  --ink: #e3e3e3;
-  --ink-2: #c7c7c7;
-  --ink-muted: #8e918f;
+  --ink: var(--neutral-100);
+  --ink-2: var(--neutral-300);
+  --ink-muted: var(--neutral-400);
 
-  --outline: #444746;
-  --outline-soft: #2d3138;
-  --hairline: rgba(255, 255, 255, 0.1);
+  --outline: var(--neutral-700);
+  --outline-soft: var(--neutral-900);
+  --hairline: oklch(100% 0 0 / 0.12);
 
   --pos: #6dd58c;
   --pos-bg: rgba(109, 213, 140, 0.14);
@@ -466,6 +484,190 @@ body {
   left: 22px;
 }
 
+/* ============================================================ side switch */
+
+.side-switch {
+  position: relative;
+  display: inline-grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  padding: 4px;
+  border-radius: var(--r-full);
+  background: var(--surface-2);
+  border: 1px solid var(--hairline);
+  isolation: isolate;
+}
+
+.side-switch .side-thumb {
+  position: absolute;
+  z-index: 0;
+  top: 4px;
+  bottom: 4px;
+  left: 4px;
+  width: calc((100% - 8px) / var(--count, 2));
+  border-radius: var(--r-full);
+  background: var(--pos);
+  box-shadow: var(--shadow-1);
+  transition: background-color 0.25s var(--ease);
+}
+
+.side-switch[data-tone="neg"] .side-thumb {
+  background: var(--neg);
+}
+
+.side-switch button {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  height: 36px;
+  padding: 0 20px;
+  border: none;
+  background: transparent;
+  color: var(--ink-muted);
+  font: inherit;
+  font-weight: 500;
+  font-size: 14px;
+  white-space: nowrap;
+  border-radius: var(--r-full);
+  cursor: pointer;
+  transition: color 0.2s var(--ease);
+}
+
+.side-switch button:hover:not([data-on="true"]) {
+  color: var(--ink);
+}
+
+/* The thumb is a solid --pos/--neg, so the live label takes the paired ink. */
+.side-switch button[data-on="true"] {
+  color: var(--surface);
+}
+:root[data-theme="dark"] .side-switch button[data-on="true"][data-tone="pos"] {
+  color: #05341a;
+}
+:root[data-theme="dark"] .side-switch button[data-on="true"][data-tone="neg"] {
+  color: #4e0f0a;
+}
+
+/* ============================================================ dropdown */
+
+.dd {
+  position: relative;
+  width: 100%;
+}
+
+.dd-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  background: var(--surface-2);
+  color: var(--ink);
+  border: 1px solid transparent;
+  border-radius: var(--r-md);
+  padding: 11px 12px 11px 14px;
+  font: inherit;
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 0.2s var(--ease), border-color 0.2s var(--ease);
+}
+
+.dd-btn:hover:not(:disabled) {
+  background: var(--surface-3);
+}
+
+.dd-btn[data-open="true"] {
+  background: var(--surface);
+  border-color: var(--primary);
+}
+
+.dd-btn[data-empty="true"] .dd-value {
+  color: var(--ink-muted);
+}
+
+.dd-btn:disabled {
+  opacity: 0.38;
+  cursor: not-allowed;
+}
+
+.dd-value {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dd-chev {
+  display: grid;
+  place-items: center;
+  color: var(--ink-muted);
+  flex: none;
+}
+
+/* Flipped, not animated — the menu opens flat. */
+.dd-btn[data-open="true"] .dd-chev {
+  transform: rotate(180deg);
+}
+
+.dd-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  z-index: 50;
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+  max-height: 288px;
+  overflow: auto;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-3);
+}
+
+.dd-menu[data-flip="true"] {
+  top: auto;
+  bottom: calc(100% + 6px);
+}
+
+.dd-opt {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border-radius: var(--r-sm);
+  font-size: 14px;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.dd-opt[data-active="true"] {
+  background: var(--surface-2);
+}
+
+.dd-opt[aria-selected="true"] {
+  color: var(--primary);
+  font-weight: 500;
+}
+
+.dd-opt-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+
+.dd-opt-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* ============================================================ segmented */
 
 .segmented {
@@ -599,27 +801,40 @@ body {
 
 /* ============================================================ stat tiles */
 
+/* One card, quartered by hairlines — four floating cards fought the treemap
+   and the rebalance panel for attention. */
 .stat-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 12px;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-xl);
+  overflow: hidden;
+}
+
+.stat {
+  padding: 20px 22px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  border-left: 1px solid var(--hairline);
+}
+
+.stat:first-child {
+  border-left: none;
 }
 
 @media (max-width: 900px) {
   .stat-grid {
     grid-template-columns: repeat(2, 1fr);
   }
-}
-
-.stat {
-  background: var(--surface);
-  border: 1px solid var(--hairline);
-  border-radius: var(--r-xl);
-  padding: 20px 22px 22px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  min-width: 0;
+  .stat:nth-child(odd) {
+    border-left: none;
+  }
+  .stat:nth-child(n + 3) {
+    border-top: 1px solid var(--hairline);
+  }
 }
 
 .stat-label {
@@ -676,9 +891,10 @@ body {
   overflow: hidden;
 }
 
+/* Tiles are square-cornered so the mosaic reads as one block; only the
+   treemap's own four outer corners are rounded, by the wrapper's clip. */
 .tm-cell {
   position: absolute;
-  border-radius: 6px;
   overflow: hidden;
   cursor: default;
   display: flex;
@@ -774,6 +990,12 @@ body {
   max-height: 520px;
   border-radius: var(--r-lg);
   border: 1px solid var(--hairline);
+}
+
+/* The plan table grows to fit every row instead of scrolling inside itself.
+   Horizontal overflow still scrolls, so narrow screens keep working. */
+.table-wrap-full {
+  max-height: none;
 }
 
 table.data {
@@ -967,12 +1189,15 @@ table.data tbody tr:hover td:first-child {
   color: var(--primary);
 }
 
+/* Popovers open inside pills and table cells, which set `white-space: nowrap`
+   and uppercase — all of that has to be reset or the copy runs out of the box. */
 .help-pop {
   position: absolute;
   top: calc(100% + 8px);
   left: -8px;
   z-index: 60;
-  width: 268px;
+  width: max-content;
+  max-width: min(300px, calc(100vw - 32px));
   background: var(--surface);
   border: 1px solid var(--hairline);
   border-radius: var(--r-md);
@@ -985,6 +1210,8 @@ table.data tbody tr:hover td:first-child {
   text-transform: none;
   letter-spacing: 0;
   text-align: left;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 .help-pop-right {
   left: auto;

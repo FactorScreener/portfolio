@@ -8,6 +8,9 @@ type Hover = { h: Holding; x: number; y: number } | null;
 
 const GAP = 3;
 
+/** Half a gap between two tiles, nothing against the treemap's outer edge. */
+const inset = (edge: number, bound: number) => (Math.abs(edge - bound) < 0.5 ? 0 : GAP / 2);
+
 export function Treemap({ holdings }: { holdings: Holding[] }) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
@@ -44,8 +47,16 @@ export function Treemap({ holdings }: { holdings: Holding[] }) {
       <div ref={wrapRef} className="treemap" style={{ height }}>
         {tiles.map((t, i) => {
           const h = t.datum.h;
-          const w = Math.max(0, t.w - GAP);
-          const ht = Math.max(0, t.h - GAP);
+          // Split the gap between neighbours and keep the outer edges flush, so
+          // the wrapper's rounded corners stay filled and only the seams show.
+          const l = inset(t.x, 0);
+          const r = inset(width, t.x + t.w);
+          const tp = inset(t.y, 0);
+          const b = inset(height, t.y + t.h);
+          const x = t.x + l;
+          const y = t.y + tp;
+          const w = Math.max(0, t.w - l - r);
+          const ht = Math.max(0, t.h - tp - b);
           const { fill, ink } = heatColors(h.pnlPct);
 
           // Only draw text that actually fits; a cramped tile gets the ticker
@@ -59,7 +70,7 @@ export function Treemap({ holdings }: { holdings: Holding[] }) {
               key={h.tradingSymbol}
               className="tm-cell"
               initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1, left: t.x, top: t.y, width: w, height: ht }}
+              animate={{ opacity: 1, scale: 1, left: x, top: y, width: w, height: ht }}
               transition={{
                 duration: 0.4,
                 delay: Math.min(i * 0.012, 0.25),
