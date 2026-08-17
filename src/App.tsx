@@ -1,14 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Route, Routes } from "react-router-dom";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { RefreshIcon, LinkBackwardIcon } from "@hugeicons/core-free-icons";
+import { LinkBackwardIcon } from "@hugeicons/core-free-icons";
 import { ApiError, api, type Overview, type Settings } from "./lib/api.ts";
-import { timeAgo } from "./lib/format.ts";
 import { Hero } from "./components/Hero.tsx";
 import { SettingsSheet } from "./components/SettingsSheet.tsx";
-import { OverviewSection } from "./components/OverviewSection.tsx";
-import { Treemap, TreemapLegend } from "./components/Treemap.tsx";
-import { RebalanceSection } from "./components/RebalanceSection.tsx";
-import { Help, Spinner, Toasts, type Toast } from "./components/ui.tsx";
+import { PortfolioPage } from "./pages/PortfolioPage.tsx";
+import { RebalancePage } from "./pages/RebalancePage.tsx";
+import { Toasts, type Toast } from "./components/ui.tsx";
 
 /** Refresh holdings and positions this often while NSE is trading. */
 const LIVE_POLL_MS = 30_000;
@@ -109,68 +108,29 @@ export function App() {
             </div>
           )}
 
-          {/* ------------------------------------------ 1. portfolio overview */}
-          <section className="section" aria-label="Portfolio overview">
-            <div className="section-head">
-              <h2 className="section-title">Portfolio</h2>
-              <span className="section-spacer" />
-              <span className="sub">{fetchedAt ? `Updated ${timeAgo(fetchedAt)}` : ""}</span>
-              <button
-                className="icon-btn icon-btn-sm"
-                onClick={() => void loadOverview()}
-                disabled={loading}
-                aria-label="Refresh portfolio"
-                title="Refresh"
-              >
-                {loading ? (
-                  <Spinner size={15} />
-                ) : (
-                  <HugeiconsIcon icon={RefreshIcon} size={16} strokeWidth={2} />
-                )}
-              </button>
-            </div>
-            <OverviewSection data={overview} />
-          </section>
-
-          {/* --------------------------------------------------- 2. treemap */}
-          <section className="section" aria-label="Allocation treemap">
-            <div className="section-head">
-              <h2 className="section-title">Allocation</h2>
-              <Help>
-                Each rectangle is one stock you are exposed to — settled holdings
-                plus today's open positions. Area is its current value; colour is
-                its overall return — deeper green for larger gains, deeper red for
-                larger losses.
-              </Help>
-              <span className="section-spacer" />
-              <TreemapLegend />
-            </div>
-            <div className="card full-bleed" style={{ padding: "12px 0" }}>
-              {overview ? (
-                <Treemap holdings={overview.holdings} />
-              ) : (
-                <div className="skeleton" style={{ height: 460 }} />
-              )}
-            </div>
-          </section>
-
-          {/* ------------------------------------------------- 3. rebalance */}
-          <section className="section" aria-label="Rebalance">
-            <div className="section-head">
-              <h2 className="section-title">Rebalance</h2>
-              <Help>
-                Give it the basket you want to hold. It compares that against your
-                current exposure — settled holdings plus today's open positions —
-                and works out the whole-share orders that move you there, using
-                that exposure plus available cash as the denominator.
-              </Help>
-            </div>
-            <RebalanceSection
-              overview={overview}
-              onDone={() => void loadOverview()}
-              notify={notify}
+          <Routes>
+            <Route
+              path="/"
+              element={
+                <PortfolioPage
+                  overview={overview}
+                  loading={loading}
+                  fetchedAt={fetchedAt}
+                  onRefresh={() => void loadOverview()}
+                />
+              }
             />
-          </section>
+            <Route
+              path="/rebalance"
+              element={
+                <RebalancePage
+                  overview={overview}
+                  onDone={() => void loadOverview()}
+                  notify={notify}
+                />
+              }
+            />
+          </Routes>
         </>
       )}
 

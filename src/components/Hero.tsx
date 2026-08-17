@@ -1,6 +1,7 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Moon02Icon, Sun03Icon, Settings02Icon } from "@hugeicons/core-free-icons";
+import { NavLink } from "react-router-dom";
 import { useTheme } from "../lib/theme.tsx";
 import type { Pricing, Settings } from "../lib/api.ts";
 import { istTime } from "../lib/format.ts";
@@ -22,6 +23,22 @@ export function Hero({
     <header className="hero">
       {/* Swap public/Logo Name.svg to change the wordmark. */}
       <img src="/Logo Name.svg" alt="Portfolio" className="hero-logo" />
+
+      <nav className="hero-nav" aria-label="Main">
+        <NavLink
+          to="/"
+          end
+          className={({ isActive }) => `nav-link${isActive ? " active" : ""}`}
+        >
+          Portfolio
+        </NavLink>
+        <NavLink
+          to="/rebalance"
+          className={({ isActive }) => `nav-link${isActive ? " active" : ""}`}
+        >
+          Rebalance
+        </NavLink>
+      </nav>
 
       <div className="hero-actions">
         <span className={`pill ${open ? "pill-live" : ""}`} title="NSE cash session">

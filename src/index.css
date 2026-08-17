@@ -282,6 +282,50 @@ body {
   gap: 6px;
 }
 
+.hero-nav {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 10px;
+}
+
+.nav-link {
+  display: inline-flex;
+  align-items: center;
+  height: 36px;
+  padding: 0 14px;
+  border-radius: var(--r-full);
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 0.1px;
+  color: var(--ink-2);
+  text-decoration: none;
+  transition:
+    background-color 0.2s var(--ease),
+    color 0.2s var(--ease);
+}
+
+.nav-link:hover {
+  background: var(--surface-3);
+  color: var(--ink);
+}
+
+.nav-link.active {
+  background: var(--primary-container);
+  color: var(--primary);
+}
+
+@media (max-width: 640px) {
+  .hero-nav {
+    margin-left: 6px;
+    gap: 2px;
+  }
+  .nav-link {
+    padding: 0 10px;
+    font-size: 13px;
+  }
+}
+
 /* ============================================================ buttons */
 
 .btn {
