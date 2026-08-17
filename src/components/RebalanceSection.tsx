@@ -4,10 +4,12 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import {
   Alert02Icon,
   ArrowDown01Icon,
+  ArrowRight01Icon,
   ArrowUp01Icon,
   CheckmarkCircle02Icon,
   PlayIcon,
   Recycle03Icon,
+  Tick02Icon,
 } from "@hugeicons/core-free-icons";
 import { api, type ExecuteResult, type Overview, type Plan } from "../lib/api.ts";
 import { toNumber } from "../lib/csv.ts";
@@ -18,6 +20,9 @@ import { TargetInput, type TargetSource } from "./TargetInput.tsx";
 
 type Side = "BUY" | "SELL";
 
+/** The three decisions a run is made of, in the order they have to happen. */
+const STEPS = ["Choose a side", "Build the basket", "Review and place"] as const;
+
 export function RebalanceSection({
   overview,
   onDone,
@@ -27,6 +32,7 @@ export function RebalanceSection({
   onDone: () => void;
   notify: (kind: "ok" | "err", text: string) => void;
 }) {
+  const [step, setStep] = useState(0);
   const [side, setSide] = useState<Side>("SELL");
   const [source, setSource] = useState<TargetSource>({ kind: "tickers", symbols: [] });
   const [capAt5Pct, setCapAt5Pct] = useState(false);
@@ -119,172 +125,267 @@ export function RebalanceSection({
   const canPreview = targets.length > 0;
   const orderRows = plan?.rows.filter((r) => r.side && r.quantity > 0) ?? [];
 
+  /** Nothing past the basket means anything until the basket has names in it. */
+  const reachable = (i: number) => i <= 1 || canPreview;
+
+  const stateOf = (i: number): StepState =>
+    i === step ? "active" : i < step ? "done" : reachable(i) ? "todo" : "locked";
+
+  /** One line of what the collapsed step decided, so the rail stays readable. */
+  const summaries: [string, string, string] = [
+    side === "SELL" ? "Sell only" : "Buy only",
+    !canPreview
+      ? "Nothing picked yet"
+      : [
+          source.kind === "csv"
+            ? `${source.sheet.fileName} · ${targets.length} rows`
+            : `${targets.length} ticker${targets.length === 1 ? "" : "s"}`,
+          weightColumn ? `weights from “${weightColumn}”` : "equal weights",
+          capAt5Pct ? "capped at 5%" : null,
+          side === "BUY" && cashOverride.trim() ? `₹${cashOverride.trim()} to deploy` : null,
+        ]
+          .filter(Boolean)
+          .join(" · "),
+    plan
+      ? plan.totals.orderCount === 0
+        ? "Already on target"
+        : `${plan.totals.orderCount} order${plan.totals.orderCount === 1 ? "" : "s"} · ${money(plan.totals.tradeValue, false)}`
+      : "Not previewed yet",
+  ];
+
+  function goto(i: number) {
+    if (reachable(i)) setStep(i);
+  }
+
+  /** Step 2 → 3 always re-prices: the rules above it may have just changed. */
+  function toReview() {
+    setStep(2);
+    void preview();
+  }
+
   return (
-    <div className="card card-pad" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-      {/* ---------------------------------------------------------- side */}
-      <div className="row wrap" style={{ gap: 12 }}>
-        <SideSwitch
-          name="Order side"
-          value={side}
-          onChange={(s) => {
-            setSide(s);
-            invalidate();
-          }}
-          options={[
-            { value: "SELL", label: "Sell only", tone: "neg", icon: ArrowDown01Icon },
-            { value: "BUY", label: "Buy only", tone: "pos", icon: ArrowUp01Icon },
-          ]}
-        />
-        <Help>
-          Cash from a sale settles the next trading day, so a mirror runs over two
-          days: sell today, buy tomorrow once the proceeds land. Each run only ever
-          sends one side.
-        </Help>
-        <span className="grow" />
-        <span className="pill">NSE · CNC · Market</span>
-      </div>
-
-      {/* -------------------------------------------------------- targets */}
-      <TargetInput
-        source={source}
-        onChange={(s) => {
-          setSource(s);
-          invalidate();
-        }}
-        notify={notify}
-        capAt5Pct={capAt5Pct}
-      />
-
-      {/* -------------------------------------------------------- weights */}
-      <div
-        className="row wrap"
-        style={{
-          gap: 18,
-          padding: "14px 16px",
-          background: "var(--surface-2)",
-          borderRadius: 16,
-        }}
-      >
-        <div className="row" style={{ gap: 10 }}>
-          <Switch
-            checked={capAt5Pct}
-            onChange={(v) => {
-              setCapAt5Pct(v);
-              // Re-price straight away so the table's Target column reflects the
-              // cap instead of blanking the plan out.
-              if (plan) void preview({ capAt5Pct: v });
-              else invalidate();
-            }}
-            label="Cap every weight at 5%"
-          />
-          <div>
-            <div style={{ fontSize: 13.5, fontWeight: 500 }}>Cap at 5%</div>
-            <div className="sub">No single stock above 5% of the portfolio</div>
-          </div>
-          <Help>
-            Anything over 5% is trimmed back and the excess is spread across the
-            names still under the cap, repeating until every weight fits. With
-            fewer than 20 stocks the basket cannot reach 100% — the remainder
-            stays in cash.
-          </Help>
-        </div>
-
-        <span className="grow" />
-
-        <div className="row" style={{ gap: 8 }}>
-          <span className="sub">Weights</span>
-          <span className="pill">
-            {weightColumn ? `From “${weightColumn}”` : "Equal"}
-            <Help align="right">
-              {weightColumn
-                ? "Read from your CSV and locked — edit the file and re-upload to change them."
-                : "Every stock in the basket gets an identical share."}
-            </Help>
-          </span>
-        </div>
-
-        {side === "BUY" && (
-          <div className="row" style={{ gap: 8 }}>
-            <label className="sub" htmlFor="cash">
-              Cash to deploy
-            </label>
-            <input
-              id="cash"
-              className="input tnum"
-              style={{ width: 150 }}
-              inputMode="decimal"
-              value={cashOverride}
-              onChange={(e) => {
-                setCashOverride(e.target.value);
+    <div className="card card-pad">
+      <div className="stepper">
+        {/* ------------------------------------------------------ 1. side */}
+        <Step
+          index={0}
+          title={STEPS[0]}
+          state={stateOf(0)}
+          summary={summaries[0]}
+          onOpen={() => goto(0)}
+        >
+          <div className="row wrap" style={{ gap: 12 }}>
+            <SideSwitch
+              name="Order side"
+              value={side}
+              onChange={(s) => {
+                setSide(s);
                 invalidate();
               }}
-              placeholder={money(overview?.funds.availabelBalance ?? 0, false)}
+              options={[
+                { value: "SELL", label: "Sell only", tone: "neg", icon: ArrowDown01Icon },
+                { value: "BUY", label: "Buy only", tone: "pos", icon: ArrowUp01Icon },
+              ]}
             />
-            <Help align="right">
-              Defaults to your Dhan available balance. Override it if yesterday's
-              sale proceeds have not shown up in the funds API yet.
+            <Help>
+              Cash from a sale settles the next trading day, so a mirror runs over two
+              days: sell today, buy tomorrow once the proceeds land. Each run only ever
+              sends one side.
             </Help>
+            <span className="grow" />
+            <span className="pill">NSE · CNC · Market</span>
           </div>
-        )}
-      </div>
 
-      {/* -------------------------------------------------------- preview */}
-      <div className="row wrap" style={{ gap: 10 }}>
-        <button
-          className="btn btn-tonal"
-          onClick={() => void preview()}
-          disabled={!canPreview || planning}
+          <div className="step-actions">
+            <Next onClick={() => setStep(1)} />
+          </div>
+        </Step>
+
+        {/* ------------------------------------------ 2. basket + rules */}
+        <Step
+          index={1}
+          title={STEPS[1]}
+          state={stateOf(1)}
+          summary={summaries[1]}
+          onOpen={() => goto(1)}
         >
-          {planning ? <Spinner /> : <HugeiconsIcon icon={Recycle03Icon} size={17} strokeWidth={2} />}
-          {planning ? "Calculating" : plan ? "Recalculate" : "Preview orders"}
-        </button>
+          <TargetInput
+            source={source}
+            onChange={(s) => {
+              setSource(s);
+              invalidate();
+            }}
+            notify={notify}
+            capAt5Pct={capAt5Pct}
+          />
 
-        {plan && plan.totals.orderCount > 0 && (
-          <button
-            className={`btn ${side === "SELL" ? "btn-danger" : "btn-filled"}`}
-            onClick={() => setConfirming(true)}
-          >
-            <HugeiconsIcon icon={PlayIcon} size={17} strokeWidth={2} />
-            Place {plan.totals.orderCount} {side === "SELL" ? "sell" : "buy"} order
-            {plan.totals.orderCount === 1 ? "" : "s"}
-          </button>
-        )}
-
-        <span className="grow" />
-
-        {!canPreview && <span className="sub">Add tickers or a CSV to begin</span>}
-
-        {plan && (
-          <span className="row" style={{ gap: 16 }}>
-            <Metric label={side === "SELL" ? "Proceeds" : "Deploying"} value={money(plan.totals.tradeValue, false)} />
-            <Metric label="Cash after" value={money(plan.totals.cashAfter, false)} />
-          </span>
-        )}
-      </div>
-
-      {/* --------------------------------------------------------- output */}
-      <AnimatePresence mode="wait">
-        {plan && (
-          <motion.div
-            key="plan"
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: planning ? 0.45 : 1, y: 0 }}
-            exit={{ opacity: 0, y: -4 }}
-            transition={{ duration: 0.24, ease: [0.2, 0, 0, 1] }}
-            style={{ display: "flex", flexDirection: "column", gap: 12 }}
-          >
-            {plan.warnings.map((w, i) => (
-              <div key={i} className="banner banner-warn">
-                <HugeiconsIcon icon={Alert02Icon} size={17} strokeWidth={2} style={{ flex: "none", marginTop: 1 }} />
-                <span>{w}</span>
+          <div className="step-panel">
+            <div className="row" style={{ gap: 10 }}>
+              <Switch
+                checked={capAt5Pct}
+                onChange={(v) => {
+                  setCapAt5Pct(v);
+                  // Re-price straight away so the table's Target column reflects the
+                  // cap instead of blanking the plan out.
+                  if (plan) void preview({ capAt5Pct: v });
+                  else invalidate();
+                }}
+                label="Cap every weight at 5%"
+              />
+              <div>
+                <div style={{ fontSize: 13.5, fontWeight: 500 }}>Cap at 5%</div>
+                <div className="sub">No single stock above 5% of the portfolio</div>
               </div>
-            ))}
-            <PlanTable plan={plan} />
-          </motion.div>
-        )}
-      </AnimatePresence>
+              <Help>
+                Anything over 5% is trimmed back and the excess is spread across the
+                names still under the cap, repeating until every weight fits. With
+                fewer than 20 stocks the basket cannot reach 100% — the remainder
+                stays in cash.
+              </Help>
+            </div>
 
-      {result && <ResultPanel result={result} />}
+            <span className="grow" />
+
+            <div className="row" style={{ gap: 8 }}>
+              <span className="sub">Weights</span>
+              <span className="pill">
+                {weightColumn ? `From “${weightColumn}”` : "Equal"}
+                <Help align="right">
+                  {weightColumn
+                    ? "Read from your CSV and locked — edit the file and re-upload to change them."
+                    : "Every stock in the basket gets an identical share."}
+                </Help>
+              </span>
+            </div>
+
+            {side === "BUY" && (
+              <div className="row" style={{ gap: 8 }}>
+                <label className="sub" htmlFor="cash">
+                  Cash to deploy
+                </label>
+                <input
+                  id="cash"
+                  className="input tnum"
+                  style={{ width: 150 }}
+                  inputMode="decimal"
+                  value={cashOverride}
+                  onChange={(e) => {
+                    setCashOverride(e.target.value);
+                    invalidate();
+                  }}
+                  placeholder={money(overview?.funds.availabelBalance ?? 0, false)}
+                />
+                <Help align="right">
+                  Defaults to your Dhan available balance. Override it if yesterday's
+                  sale proceeds have not shown up in the funds API yet.
+                </Help>
+              </div>
+            )}
+          </div>
+
+          <div className="step-actions">
+            <button className="btn btn-filled" onClick={toReview} disabled={!canPreview}>
+              <HugeiconsIcon icon={Recycle03Icon} size={17} strokeWidth={2} />
+              Preview orders
+            </button>
+            {!canPreview && <span className="sub">Add tickers or a CSV to continue</span>}
+          </div>
+        </Step>
+
+        {/* --------------------------------------------------- 3. review */}
+        <Step
+          index={2}
+          title={STEPS[2]}
+          state={stateOf(2)}
+          summary={summaries[2]}
+          onOpen={() => {
+            if (!reachable(2)) return;
+            setStep(2);
+            if (!plan && !planning) void preview();
+          }}
+        >
+          {planning && !plan && (
+            <div className="row sub" style={{ gap: 8 }}>
+              <Spinner />
+              Pricing the basket against your holdings…
+            </div>
+          )}
+
+          {!planning && !plan && (
+            <div className="step-actions">
+              <button className="btn btn-tonal" onClick={() => void preview()} disabled={!canPreview}>
+                <HugeiconsIcon icon={Recycle03Icon} size={17} strokeWidth={2} />
+                Preview orders
+              </button>
+            </div>
+          )}
+
+          <AnimatePresence mode="wait">
+            {plan && (
+              <motion.div
+                key="plan"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: planning ? 0.45 : 1, y: 0 }}
+                exit={{ opacity: 0, y: -4 }}
+                transition={{ duration: 0.24, ease: [0.2, 0, 0, 1] }}
+                style={{ display: "flex", flexDirection: "column", gap: 14 }}
+              >
+                <div className="row wrap" style={{ gap: 10 }}>
+                  <button
+                    className="btn btn-tonal"
+                    onClick={() => void preview()}
+                    disabled={!canPreview || planning}
+                  >
+                    {planning ? (
+                      <Spinner />
+                    ) : (
+                      <HugeiconsIcon icon={Recycle03Icon} size={17} strokeWidth={2} />
+                    )}
+                    {planning ? "Calculating" : "Recalculate"}
+                  </button>
+
+                  {plan.totals.orderCount > 0 && (
+                    <button
+                      className={`btn ${side === "SELL" ? "btn-danger" : "btn-filled"}`}
+                      onClick={() => setConfirming(true)}
+                    >
+                      <HugeiconsIcon icon={PlayIcon} size={17} strokeWidth={2} />
+                      Place {plan.totals.orderCount} {side === "SELL" ? "sell" : "buy"} order
+                      {plan.totals.orderCount === 1 ? "" : "s"}
+                    </button>
+                  )}
+
+                  <span className="grow" />
+
+                  <span className="row" style={{ gap: 16 }}>
+                    <Metric
+                      label={side === "SELL" ? "Proceeds" : "Deploying"}
+                      value={money(plan.totals.tradeValue, false)}
+                    />
+                    <Metric label="Cash after" value={money(plan.totals.cashAfter, false)} />
+                  </span>
+                </div>
+
+                {plan.warnings.map((w, i) => (
+                  <div key={i} className="banner banner-warn">
+                    <HugeiconsIcon
+                      icon={Alert02Icon}
+                      size={17}
+                      strokeWidth={2}
+                      style={{ flex: "none", marginTop: 1 }}
+                    />
+                    <span>{w}</span>
+                  </div>
+                ))}
+
+                <PlanTable plan={plan} />
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {result && <ResultPanel result={result} />}
+        </Step>
+      </div>
 
       {/* ------------------------------------------------------- confirm */}
       <Dialog
@@ -337,6 +438,135 @@ export function RebalanceSection({
         </div>
       </Dialog>
     </div>
+  );
+}
+
+/* ------------------------------------------------------------------ step */
+
+type StepState = "active" | "done" | "todo" | "locked";
+
+/**
+ * One rung of the rail: dot, title, and a body that only exists while the step
+ * is open. Collapsed steps fall back to their summary line and stay clickable
+ * so any earlier decision is one click away.
+ */
+function Step({
+  index,
+  title,
+  state,
+  summary,
+  onOpen,
+  children,
+}: {
+  index: number;
+  title: string;
+  state: StepState;
+  summary: string;
+  onOpen: () => void;
+  children: React.ReactNode;
+}) {
+  const open = state === "active";
+  const last = index === STEPS.length - 1;
+
+  return (
+    <div className="step" data-state={state}>
+      <div className="step-rail" aria-hidden>
+        <div className="step-dot">
+          <AnimatePresence mode="wait" initial={false}>
+            {state === "done" ? (
+              <motion.span
+                key="tick"
+                style={{ display: "grid" }}
+                initial={{ scale: 0.4, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.4, opacity: 0 }}
+                transition={{ type: "spring", stiffness: 620, damping: 30 }}
+              >
+                <HugeiconsIcon icon={Tick02Icon} size={16} strokeWidth={3} />
+              </motion.span>
+            ) : (
+              <motion.span
+                key="num"
+                initial={{ scale: 0.6, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.6, opacity: 0 }}
+                transition={{ duration: 0.15 }}
+              >
+                {index + 1}
+              </motion.span>
+            )}
+          </AnimatePresence>
+        </div>
+        {!last && (
+          <div className="step-line" style={{ ["--fill" as string]: state === "done" ? 1 : 0 }} />
+        )}
+      </div>
+
+      <div className="step-main">
+        <button
+          type="button"
+          className="step-head"
+          onClick={onOpen}
+          disabled={state === "locked" || open}
+          aria-expanded={open}
+        >
+          <span className="step-title">{title}</span>
+          <AnimatePresence initial={false}>
+            {!open && (
+              <motion.span
+                className="step-summary"
+                initial={{ opacity: 0, x: -4 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.18 }}
+              >
+                {summary}
+              </motion.span>
+            )}
+          </AnimatePresence>
+        </button>
+
+        <Collapse open={open}>
+          <div className="step-body">{children}</div>
+        </Collapse>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Height animation has to clip while it runs, but the steps contain dropdowns
+ * and autocomplete menus that overflow their box — so the clip is dropped the
+ * moment the step has settled open.
+ */
+function Collapse({ open, children }: { open: boolean; children: React.ReactNode }) {
+  const [settled, setSettled] = useState(open);
+
+  return (
+    <AnimatePresence initial={false}>
+      {open && (
+        <motion.div
+          initial={{ height: 0, opacity: 0 }}
+          animate={{ height: "auto", opacity: 1 }}
+          exit={{ height: 0, opacity: 0 }}
+          transition={{ duration: 0.3, ease: [0.2, 0, 0, 1] }}
+          onAnimationStart={() => setSettled(false)}
+          onAnimationComplete={() => setSettled(true)}
+          style={{ overflow: settled ? "visible" : "hidden" }}
+        >
+          {children}
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+}
+
+function Next({ onClick, disabled }: { onClick: () => void; disabled?: boolean }) {
+  return (
+    <button className="btn btn-tonal" onClick={onClick} disabled={disabled}>
+      Continue
+      <HugeiconsIcon icon={ArrowRight01Icon} size={17} strokeWidth={2.2} />
+    </button>
   );
 }
 
