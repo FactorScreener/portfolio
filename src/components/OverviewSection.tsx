@@ -1,4 +1,3 @@
-import { motion } from "framer-motion";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { ArrowUpRight01Icon, ArrowDownRight01Icon } from "@hugeicons/core-free-icons";
 import type { Overview } from "../lib/api.ts";
@@ -11,23 +10,16 @@ function Tile({
   delta,
   deltaPct,
   help,
-  index,
 }: {
   label: string;
   value: string;
   delta?: number;
   deltaPct?: number;
   help?: React.ReactNode;
-  index: number;
 }) {
   const up = (delta ?? 0) >= 0;
   return (
-    <motion.div
-      className="stat"
-      initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.34, delay: index * 0.05, ease: [0.2, 0, 0, 1] }}
-    >
+    <div className="stat">
       <div className="stat-label">
         {label}
         {help && <Help>{help}</Help>}
@@ -45,7 +37,7 @@ function Tile({
           {pct(deltaPct)}
         </div>
       )}
-    </motion.div>
+    </div>
   );
 }
 
@@ -62,9 +54,8 @@ export function OverviewSection({ data }: { data: Overview | null }) {
   return (
     <>
       <div className="stat-grid">
-        <Tile index={0} label="Investment" value={money(s.invested)} />
+        <Tile label="Investment" value={money(s.invested)} />
         <Tile
-          index={1}
           label="Current Value"
           value={money(s.currentValue)}
           help={
@@ -83,14 +74,12 @@ export function OverviewSection({ data }: { data: Overview | null }) {
           }
         />
         <Tile
-          index={2}
           label="Overall Profits"
           value={signed(s.pnl)}
           delta={s.pnl}
           deltaPct={s.pnlPct}
         />
         <Tile
-          index={3}
           label={dayLabel}
           value={signed(s.dayChange)}
           delta={s.dayChange}

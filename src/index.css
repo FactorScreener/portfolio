@@ -302,7 +302,8 @@ body {
   text-decoration: none;
   transition:
     background-color 0.2s var(--ease),
-    color 0.2s var(--ease);
+    color 0.2s var(--ease),
+    transform 0.2s var(--ease);
 }
 
 .nav-link:hover {
@@ -310,9 +311,18 @@ body {
   color: var(--ink);
 }
 
+.nav-link:active {
+  transform: scale(0.96);
+}
+
+.nav-link:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
 .nav-link.active {
   background: var(--primary-container);
-  color: var(--primary);
+  color: var(--on-primary-container);
 }
 
 @media (max-width: 640px) {
@@ -1443,6 +1453,7 @@ table.data tbody tr:hover td:first-child {
 .help {
   position: relative;
   display: inline-flex;
+  vertical-align: middle;
 }
 
 .help-btn {

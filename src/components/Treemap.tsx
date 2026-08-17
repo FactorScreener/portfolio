@@ -1,5 +1,4 @@
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
-import { motion } from "framer-motion";
 import type { Holding } from "../lib/api.ts";
 import { money, moneyShort, pct } from "../lib/format.ts";
 import { HEAT_VARS, heatColors, squarify } from "../lib/treemap.ts";
@@ -72,7 +71,7 @@ export function Treemap({ holdings }: { holdings: Holding[] }) {
   return (
     <>
       <div ref={wrapRef} className="treemap" style={{ height }}>
-        {tiles.map((t, i) => {
+        {tiles.map((t) => {
           const h = t.datum.h;
           // Split the gap between neighbours and keep the outer edges flush, so
           // the wrapper's rounded corners stay filled and only the seams show.
@@ -94,17 +93,10 @@ export function Treemap({ holdings }: { holdings: Holding[] }) {
           const symSize = showSym ? fitTicker(h.tradingSymbol, availW, Math.min(19, Math.floor(ht / 3.4))) : 0;
 
           return (
-            <motion.div
+            <div
               key={h.tradingSymbol}
               className="tm-cell"
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1, left: x, top: y, width: w, height: ht }}
-              transition={{
-                duration: 0.4,
-                delay: Math.min(i * 0.012, 0.25),
-                ease: [0.2, 0, 0, 1],
-              }}
-              style={{ background: fill, color: ink }}
+              style={{ left: x, top: y, width: w, height: ht, background: fill, color: ink }}
               onMouseEnter={(e) => setHover({ h, x: e.clientX, y: e.clientY })}
               onMouseMove={(e) => setHover({ h, x: e.clientX, y: e.clientY })}
               onMouseLeave={() => setHover(null)}
@@ -126,7 +118,7 @@ export function Treemap({ holdings }: { holdings: Holding[] }) {
                   {pct(h.pnlPct, 1)}
                 </span>
               )}
-            </motion.div>
+            </div>
           );
         })}
       </div>
