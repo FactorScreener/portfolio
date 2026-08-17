@@ -79,34 +79,36 @@
 :root[data-theme="dark"] {
   color-scheme: dark;
 
-  --primary: #a8c7fa;
+  /* Pulled off the shared 0-chroma neutral ramp on purpose: those steps double
+     as light-mode ink/surface colors, so dark mode gets its own literal values
+     with wider lightness gaps and its accents get real chroma instead of the
+     washed-out pastels a straight lighten-for-dark-bg pass produces. */
+  --primary: #6fa4fc;
   --on-primary: #062e6f;
   --primary-container: #0842a0;
   --on-primary-container: #d3e3fd;
-  --primary-hover: #c2ddff;
+  --primary-hover: #98bffe;
 
-  /* Every surface role sits one step deeper than its light-mode counterpart,
-     so the page reads black and the cards stay legible against it. */
-  --page: var(--neutral-1000);
-  --surface: var(--neutral-950);
-  --surface-2: var(--neutral-900);
-  --surface-3: var(--neutral-800);
-  --surface-hover: var(--neutral-900);
+  --page: oklch(6% 0 0);
+  --surface: oklch(15% 0 0);
+  --surface-2: oklch(22% 0 0);
+  --surface-3: oklch(30% 0 0);
+  --surface-hover: oklch(22% 0 0);
 
   --ink: var(--neutral-100);
   --ink-2: var(--neutral-300);
   --ink-muted: var(--neutral-400);
 
-  --outline: var(--neutral-700);
-  --outline-soft: var(--neutral-900);
-  --hairline: oklch(100% 0 0 / 0.12);
+  --outline: oklch(42% 0 0);
+  --outline-soft: oklch(22% 0 0);
+  --hairline: oklch(100% 0 0 / 0.16);
 
-  --pos: #6dd58c;
-  --pos-bg: rgba(109, 213, 140, 0.14);
-  --neg: #f2b8b5;
-  --neg-bg: rgba(242, 184, 181, 0.14);
-  --warn: #f9cd63;
-  --warn-bg: rgba(249, 205, 99, 0.13);
+  --pos: #4fd57f;
+  --pos-bg: rgba(79, 213, 127, 0.16);
+  --neg: #fd736d;
+  --neg-bg: rgba(253, 115, 109, 0.16);
+  --warn: #f8c647;
+  --warn-bg: rgba(248, 198, 71, 0.15);
 
   --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.4), 0 1px 3px 1px rgba(0, 0, 0, 0.3);
   --shadow-2: 0 1px 3px rgba(0, 0, 0, 0.5), 0 4px 8px 3px rgba(0, 0, 0, 0.35);
