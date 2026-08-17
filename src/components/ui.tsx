@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
@@ -109,12 +109,12 @@ export function SideSwitch<T extends string>({
   name,
 }: {
   value: T;
-  options: { value: T; label: string; tone: "pos" | "neg"; icon?: React.ComponentProps<typeof HugeiconsIcon>["icon"] }[];
+  options: { value: T; label: string; tone?: "pos" | "neg" | "accent"; icon?: React.ComponentProps<typeof HugeiconsIcon>["icon"] }[];
   onChange: (v: T) => void;
   name: string;
 }) {
   const index = Math.max(0, options.findIndex((o) => o.value === value));
-  const tone = options[index]?.tone ?? "pos";
+  const tone = options[index]?.tone ?? "accent";
 
   return (
     <div
@@ -137,48 +137,10 @@ export function SideSwitch<T extends string>({
           role="radio"
           aria-checked={value === o.value}
           data-on={value === o.value}
-          data-tone={o.tone}
+          data-tone={o.tone ?? "accent"}
           onClick={() => onChange(o.value)}
         >
           {o.icon && <HugeiconsIcon icon={o.icon} size={16} strokeWidth={2.4} />}
-          <span>{o.label}</span>
-        </button>
-      ))}
-    </div>
-  );
-}
-
-/* ------------------------------------------------------------- Segmented */
-
-export function Segmented<T extends string>({
-  value,
-  options,
-  onChange,
-  name,
-}: {
-  value: T;
-  options: { value: T; label: string; icon?: React.ComponentProps<typeof HugeiconsIcon>["icon"] }[];
-  onChange: (v: T) => void;
-  name: string;
-}) {
-  const id = useId();
-  return (
-    <div className="segmented" role="group" aria-label={name}>
-      {options.map((o) => (
-        <button
-          key={o.value}
-          type="button"
-          aria-pressed={value === o.value}
-          onClick={() => onChange(o.value)}
-        >
-          {value === o.value && (
-            <motion.span
-              layoutId={`seg-${id}`}
-              className="seg-pill"
-              transition={{ type: "spring", stiffness: 480, damping: 40 }}
-            />
-          )}
-          {o.icon && <HugeiconsIcon icon={o.icon} size={17} strokeWidth={2} />}
           <span>{o.label}</span>
         </button>
       ))}

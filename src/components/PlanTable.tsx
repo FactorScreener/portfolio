@@ -3,7 +3,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { Alert02Icon } from "@hugeicons/core-free-icons";
 import type { Plan, PlanRow } from "../lib/api.ts";
 import { money, moneyShort, pct } from "../lib/format.ts";
-import { Segmented } from "./ui.tsx";
+import { SideSwitch } from "./ui.tsx";
 
 const TAGS: Record<PlanRow["action"], { label: string; cls: string }> = {
   buy: { label: "Buy", cls: "tag-buy" },
@@ -34,7 +34,7 @@ export function PlanTable({ plan }: { plan: Plan }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       <div className="row wrap">
-        <Segmented
+        <SideSwitch
           name="Rows shown"
           value={filter}
           onChange={setFilter}

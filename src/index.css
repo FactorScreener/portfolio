@@ -439,6 +439,13 @@ body {
   color: var(--ink-muted);
 }
 
+/* The ticker box matches the CSV dropzone's height so the two tabs line up.
+   Bottom padding holds the text at the top of the tall box. */
+.input-tall {
+  height: 134px;
+  padding: 14px 14px 98px;
+}
+
 /* ============================================================ switch */
 
 .switch {
@@ -517,6 +524,12 @@ body {
   background: var(--neg);
 }
 
+/* Neutral switches (Tickers/CSV, Orders/All) keep the pill shape but drop
+   the side colours — the thumb takes the accent container instead. */
+.side-switch[data-tone="accent"] .side-thumb {
+  background: var(--primary-container);
+}
+
 .side-switch button {
   position: relative;
   z-index: 1;
@@ -545,6 +558,9 @@ body {
 /* The thumb is a solid --pos/--neg, so the live label takes the paired ink. */
 .side-switch button[data-on="true"] {
   color: var(--surface);
+}
+.side-switch[data-tone="accent"] button[data-on="true"] {
+  color: var(--on-primary-container);
 }
 :root[data-theme="dark"] .side-switch button[data-on="true"][data-tone="pos"] {
   color: #05341a;
@@ -668,54 +684,6 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-/* ============================================================ segmented */
-
-.segmented {
-  display: inline-flex;
-  border: 1px solid var(--outline);
-  border-radius: var(--r-full);
-  overflow: hidden;
-  background: var(--surface);
-}
-
-.segmented button {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 7px;
-  height: 40px;
-  padding: 0 20px;
-  border: none;
-  background: transparent;
-  color: var(--ink-2);
-  font: inherit;
-  font-weight: 500;
-  font-size: 14px;
-  cursor: pointer;
-  transition: color 0.2s var(--ease);
-}
-
-.segmented button + button {
-  border-left: 1px solid var(--outline);
-}
-
-.segmented button[aria-pressed="true"] {
-  color: var(--on-primary-container);
-}
-
-.segmented .seg-pill {
-  position: absolute;
-  inset: 0;
-  background: var(--primary-container);
-  z-index: -1;
-}
-
-.segmented button > * {
-  position: relative;
-  z-index: 1;
 }
 
 /* ============================================================ chips */
@@ -1451,7 +1419,12 @@ table.data tbody tr:hover td:first-child {
 .dropzone {
   border: 1.5px dashed var(--outline);
   border-radius: var(--r-lg);
+  min-height: 134px;
   padding: 26px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
   text-align: center;
   color: var(--ink-muted);
   cursor: pointer;

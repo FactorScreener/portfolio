@@ -13,7 +13,7 @@ import { applyCap, normalise } from "../../shared/weights.ts";
 import { api } from "../lib/api.ts";
 import { parseSheet, parseTickerText, toNumber, type Sheet } from "../lib/csv.ts";
 import { Dropdown } from "./Dropdown.tsx";
-import { Help, Segmented, Spinner } from "./ui.tsx";
+import { Help, SideSwitch, Spinner } from "./ui.tsx";
 
 export type TargetSource =
   | { kind: "tickers"; symbols: string[] }
@@ -31,12 +31,16 @@ export function TargetInput({
   /** Mirrored in the preview's weight column so the toggle has a visible effect. */
   capAt5Pct: boolean;
 }) {
-  const [tab, setTab] = useState<"tickers" | "csv">(source.kind);
+  // CSV leads by default; an already-picked ticker list keeps its tab so
+  // reopening the step doesn't hide it.
+  const [tab, setTab] = useState<"tickers" | "csv">(
+    source.kind === "tickers" && source.symbols.length > 0 ? "tickers" : "csv",
+  );
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
       <div className="row">
-        <Segmented
+        <SideSwitch
           name="Target source"
           value={tab}
           onChange={(t) => {
@@ -46,8 +50,8 @@ export function TargetInput({
             }
           }}
           options={[
-            { value: "tickers", label: "Tickers", icon: Search01Icon },
             { value: "csv", label: "CSV", icon: CsvIcon },
+            { value: "tickers", label: "Tickers", icon: Search01Icon },
           ]}
         />
         <span className="grow" />
@@ -139,7 +143,7 @@ function TickerEntry({
     <div ref={boxRef} style={{ display: "flex", flexDirection: "column", gap: 10 }}>
       <div style={{ position: "relative" }}>
         <input
-          className="input"
+          className="input input-tall"
           value={text}
           placeholder="Type a ticker, or paste a whole list separated by commas or newlines"
           spellCheck={false}
