@@ -366,6 +366,10 @@ body {
   cursor: not-allowed;
 }
 
+a.btn {
+  text-decoration: none;
+}
+
 .btn-filled {
   background: var(--primary);
   color: var(--on-primary);
@@ -1378,6 +1382,138 @@ table.data tbody tr:hover td:first-child {
   align-items: center;
   flex-wrap: wrap;
   gap: 10px;
+}
+
+/* ============================================================ history */
+
+.run-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.run-card {
+  overflow: hidden;
+}
+
+.run-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 16px 18px;
+  border: none;
+  background: transparent;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  /* Square on purpose: the card's overflow + radius is the only round
+     corner, so it does not snap when the body is still collapsing. */
+  border-radius: 0;
+  transition: background-color 0.2s var(--ease);
+}
+
+.run-head:hover {
+  background: color-mix(in oklab, var(--ink) 4%, transparent);
+}
+
+.run-when {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.run-when .sub {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.run-when-title {
+  font-size: 14.5px;
+  font-weight: 500;
+  letter-spacing: -0.1px;
+}
+
+.run-metrics {
+  display: grid;
+  grid-template-columns: 5.5rem 8.5rem 13.75rem;
+  align-items: stretch;
+  margin-left: auto;
+  flex: none;
+}
+
+.run-metric {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-end;
+  gap: 3px;
+  min-width: 0;
+  line-height: 1.25;
+  text-align: right;
+  padding: 0 16px;
+}
+
+.run-metric + .run-metric {
+  border-left: 1px solid var(--hairline);
+}
+
+.run-metric:last-child {
+  padding-right: 10px;
+}
+
+.run-metric b {
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.run-chev {
+  display: grid;
+  place-items: center;
+  color: var(--ink-muted);
+  flex: none;
+  transition: transform 0.36s var(--ease);
+}
+
+.run-card[data-open="true"] .run-chev {
+  transform: rotate(180deg);
+}
+
+.run-body {
+  padding: 0;
+}
+
+.run-card .table-wrap {
+  border: none;
+  border-radius: 0;
+  max-height: none;
+  border-top: 1px solid var(--hairline);
+}
+
+.run-card table.data th,
+.run-card table.data td {
+  padding-left: 18px;
+  padding-right: 18px;
+}
+
+@media (max-width: 700px) {
+  .run-head {
+    flex-wrap: wrap;
+    padding: 14px;
+  }
+  .run-metrics {
+    margin-left: 0;
+    width: 100%;
+    grid-template-columns: 1fr 1fr 1fr;
+    padding-left: 52px;
+  }
+  .run-chev {
+    margin-left: auto;
+  }
 }
 
 /* A step's own settings block — quieter than a card, still grouped. */

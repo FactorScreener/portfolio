@@ -11,6 +11,7 @@ import {
   Recycle03Icon,
   Tick02Icon,
 } from "@hugeicons/core-free-icons";
+import { Link } from "react-router-dom";
 import { api, type ExecuteResult, type Overview, type Plan } from "../lib/api.ts";
 import { toNumber } from "../lib/csv.ts";
 import { money } from "../lib/format.ts";
@@ -601,6 +602,9 @@ function ResultPanel({ result }: { result: ExecuteResult }) {
           {result.placed} placed{failed.length ? `, ${failed.length} failed` : ""}
         </b>
         <span className="grow" />
+        <Link to="/history" className="btn btn-text btn-sm">
+          View history
+        </Link>
         <span className="sub mono">run {result.runId.slice(0, 8)}</span>
       </div>
       {failed.map((f) => (

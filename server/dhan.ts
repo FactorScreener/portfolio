@@ -162,6 +162,35 @@ export function getOrders(creds: Credentials) {
   return call<DhanOrder[]>(creds, "/orders");
 }
 
+export type DhanTrade = {
+  orderId: string;
+  securityId: string;
+  transactionType: string;
+  tradedQuantity: number;
+  tradedPrice: number;
+  customSymbol?: string | null;
+  tradingSymbol?: string | null;
+};
+
+/** Paginated fills across a date range. Dhan's day order book does not keep
+ *  yesterday; this is how a past rebalance is confirmed. */
+export async function getTradeHistory(
+  creds: Credentials,
+  fromDate: string,
+  toDate: string,
+): Promise<DhanTrade[]> {
+  const out: DhanTrade[] = [];
+  for (let page = 0; page < 50; page++) {
+    const rows = await call<DhanTrade[]>(
+      creds,
+      `/trades/${fromDate}/${toDate}/${page}`,
+    );
+    if (!Array.isArray(rows) || rows.length === 0) break;
+    out.push(...rows);
+  }
+  return out;
+}
+
 export function cancelOrder(creds: Credentials, orderId: string) {
   return call<{ orderId: string; orderStatus: string }>(
     creds,

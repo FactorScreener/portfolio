@@ -14,10 +14,13 @@ import {
   getHoldings,
   getOrders,
   getPositions,
+  getTradeHistory,
   placeOrder,
   saveCredentials,
   type DhanHolding,
+  type DhanOrder,
   type DhanPosition,
+  type DhanTrade,
 } from "./dhan.ts";
 import {
   buildExposure,
@@ -362,6 +365,211 @@ api.post("/rebalance/execute", async (c) => {
     failed: results.filter((r) => !r.ok).length,
     results,
   });
+});
+
+// ---------------------------------------------------------------- history
+
+type OrderRow = {
+  id: number;
+  run_id: string;
+  placed_at: string;
+  side: "BUY" | "SELL";
+  symbol: string;
+  security_id: string;
+  quantity: number;
+  ref_price: number | null;
+  dhan_order_id: string | null;
+  status: string;
+  error: string | null;
+};
+
+type Fill = { qty: number; notional: number; securityId: string; side: string };
+
+const TERMINAL_BAD = new Set(["FAILED", "REJECTED", "CANCELLED", "EXPIRED", "NO_FILL"]);
+
+function ymdIst(input?: string | number | Date): string {
+  const d = input === undefined ? new Date() : new Date(input);
+  return d.toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+}
+
+function aggregateTrades(trades: DhanTrade[]): Map<string, Fill> {
+  const m = new Map<string, Fill>();
+  for (const t of trades) {
+    const id = String(t.orderId);
+    const qty = Number(t.tradedQuantity) || 0;
+    const px = Number(t.tradedPrice) || 0;
+    const prev = m.get(id);
+    if (prev) {
+      prev.qty += qty;
+      prev.notional += qty * px;
+    } else {
+      m.set(id, {
+        qty,
+        notional: qty * px,
+        securityId: String(t.securityId),
+        side: String(t.transactionType),
+      });
+    }
+  }
+  return m;
+}
+
+function applyFill(
+  row: OrderRow,
+  fill: Fill,
+): { status: string; filledQty: number; avgPrice: number; live: boolean } {
+  return {
+    status: fill.qty >= row.quantity ? "TRADED" : "PART_TRADED",
+    filledQty: fill.qty,
+    avgPrice: fill.qty ? fill.notional / fill.qty : 0,
+    live: true,
+  };
+}
+
+/**
+ * Local audit of every rebalance this machine sent. SQLite is the source of
+ * which orders went out; Dhan's day book plus trade history paint the actual
+ * fill. A dead token still returns the local rows.
+ */
+api.get("/history", async (c) => {
+  const rows = db
+    .query<OrderRow, []>("SELECT * FROM orders ORDER BY id")
+    .all();
+
+  let live = false;
+  let liveError: string | null = null;
+  const liveById = new Map<string, DhanOrder>();
+  let fillsById = new Map<string, Fill>();
+
+  const creds = getCredentials();
+  if (creds && rows.length) {
+    const from = ymdIst(rows[0]!.placed_at);
+    const to = ymdIst();
+    try {
+      const [book, trades] = await Promise.all([
+        getOrders(creds),
+        getTradeHistory(creds, from, to),
+      ]);
+      live = true;
+      for (const o of Array.isArray(book) ? book : []) {
+        if (o.orderId) liveById.set(String(o.orderId), o);
+      }
+      fillsById = aggregateTrades(trades);
+    } catch (e) {
+      liveError = (e as Error).message;
+    }
+  }
+
+  const overlay = new Map<
+    number,
+    { status: string; filledQty: number | null; avgPrice: number | null; live: boolean; dhanOrderId: string | null }
+  >();
+
+  const unmatched: OrderRow[] = [];
+  for (const row of rows) {
+    const oid = row.dhan_order_id;
+    const book = oid ? liveById.get(oid) : undefined;
+    if (book) {
+      const filled = Number(book.filledQty) || 0;
+      const avg = Number(book.averageTradedPrice) || 0;
+      overlay.set(row.id, {
+        status: book.orderStatus || row.status,
+        filledQty: filled || null,
+        avgPrice: avg || null,
+        live: true,
+        dhanOrderId: oid,
+      });
+      continue;
+    }
+    const fill = oid ? fillsById.get(oid) : undefined;
+    if (fill) {
+      overlay.set(row.id, { ...applyFill(row, fill), dhanOrderId: oid });
+      continue;
+    }
+    if (row.status === "FAILED" || !oid) {
+      overlay.set(row.id, {
+        status: row.status,
+        filledQty: null,
+        avgPrice: null,
+        live: false,
+        dhanOrderId: oid,
+      });
+      continue;
+    }
+    unmatched.push(row);
+  }
+
+  // Only the Dhan order id we stored at place-time counts. Matching leftovers
+  // by scrip + qty would steal a later manual fill (WELCORP was cancelled in
+  // the Dhan app; a separate 58-share buy then looked identical).
+  for (const row of unmatched) {
+    const pastDay = ymdIst(row.placed_at) < ymdIst();
+    overlay.set(row.id, {
+      status: live && pastDay ? "NO_FILL" : row.status,
+      filledQty: null,
+      avgPrice: null,
+      live,
+      dhanOrderId: row.dhan_order_id,
+    });
+  }
+
+  const persist = db.query("UPDATE orders SET status = ? WHERE id = ?");
+  for (const [id, o] of overlay) {
+    if (o.live) persist.run(o.status, id);
+  }
+
+  const groups = new Map<string, OrderRow[]>();
+  for (const row of rows) {
+    const list = groups.get(row.run_id);
+    if (list) list.push(row);
+    else groups.set(row.run_id, [row]);
+  }
+
+  const runs = [...groups.values()].reverse().map((orders) => {
+    const first = orders[0]!;
+    const mapped = orders.map((o) => {
+      const over = overlay.get(o.id);
+      const filledQty = over?.filledQty ?? null;
+      const avgPrice = over?.avgPrice ?? null;
+      const status = over?.status ?? o.status;
+      const orderValue =
+        filledQty != null && avgPrice != null
+          ? filledQty * avgPrice
+          : TERMINAL_BAD.has(status)
+            ? 0
+            : o.quantity * (o.ref_price ?? 0);
+      return {
+        id: o.id,
+        symbol: o.symbol,
+        securityId: o.security_id,
+        quantity: o.quantity,
+        filledQty,
+        refPrice: o.ref_price,
+        avgPrice,
+        orderValue,
+        dhanOrderId: over?.dhanOrderId ?? o.dhan_order_id,
+        status,
+        live: over?.live ?? false,
+        error: o.error,
+      };
+    });
+    const failed = mapped.filter((o) => TERMINAL_BAD.has(o.status)).length;
+    const traded = mapped.filter((o) => o.status === "TRADED").length;
+    const notional = mapped.reduce((sum, o) => sum + o.orderValue, 0);
+    return {
+      runId: first.run_id,
+      placedAt: first.placed_at,
+      side: first.side,
+      orderCount: orders.length,
+      placed: orders.length - failed,
+      traded,
+      failed,
+      notional,
+      orders: mapped,
+    };
+  });
+
+  return c.json({ runs, live, liveError });
 });
 
 // ---------------------------------------------------------------- orders

@@ -7,6 +7,7 @@ import { Hero } from "./components/Hero.tsx";
 import { SettingsSheet } from "./components/SettingsSheet.tsx";
 import { PortfolioPage } from "./pages/PortfolioPage.tsx";
 import { RebalancePage } from "./pages/RebalancePage.tsx";
+import { HistoryPage } from "./pages/HistoryPage.tsx";
 import { Toasts, type Toast } from "./components/ui.tsx";
 
 /** Refresh holdings and positions this often while NSE is trading. */
@@ -130,6 +131,7 @@ export function App() {
                 />
               }
             />
+            <Route path="/history" element={<HistoryPage />} />
           </Routes>
         </>
       )}

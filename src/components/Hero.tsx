@@ -38,6 +38,12 @@ export function Hero({
         >
           Rebalance
         </NavLink>
+        <NavLink
+          to="/history"
+          className={({ isActive }) => `nav-link${isActive ? " active" : ""}`}
+        >
+          History
+        </NavLink>
       </nav>
 
       <div className="hero-actions">

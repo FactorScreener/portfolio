@@ -137,6 +137,33 @@ export type ExecuteResult = {
   }[];
 };
 
+export type HistoryOrder = {
+  id: number;
+  symbol: string;
+  securityId: string;
+  quantity: number;
+  filledQty: number | null;
+  refPrice: number | null;
+  avgPrice: number | null;
+  orderValue: number;
+  dhanOrderId: string | null;
+  status: string;
+  live: boolean;
+  error: string | null;
+};
+
+export type HistoryRun = {
+  runId: string;
+  placedAt: string;
+  side: "BUY" | "SELL";
+  orderCount: number;
+  placed: number;
+  traded: number;
+  failed: number;
+  notional: number;
+  orders: HistoryOrder[];
+};
+
 export class ApiError extends Error {
   constructor(
     message: string,
@@ -208,4 +235,6 @@ export const api = {
       runs: { run_id: string; placed_at: string; side: string; n: number }[];
     }>("/orders"),
   cancelOrder: (id: string) => req<unknown>(`/orders/${id}`, { method: "DELETE" }),
+
+  history: () => req<{ runs: HistoryRun[]; live: boolean; liveError: string | null }>("/history"),
 };
