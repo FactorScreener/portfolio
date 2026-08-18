@@ -28,6 +28,9 @@ export function HistoryPage() {
       setLiveError(dhanErr);
       setOpenId((id) => {
         if (id && next.some((r) => r.runId === id)) return id;
+        // A phone cannot scan a 30-row table that opens itself; leave
+        // the list collapsed until they pick a batch.
+        if (window.matchMedia("(max-width: 700px)").matches) return null;
         return next[0]?.runId ?? null;
       });
       setError(null);
@@ -43,7 +46,7 @@ export function HistoryPage() {
   }, [load]);
 
   return (
-    <section className="section" aria-label="Rebalance history">
+    <section className="section section-history" aria-label="Rebalance history">
       <div className="section-head">
         <h2 className="section-title">History</h2>
         <Help>
@@ -53,8 +56,11 @@ export function HistoryPage() {
         </Help>
         <span className="section-spacer" />
         {runs && runs.length > 0 && (
-          <div className="row" style={{ gap: 8 }}>
-            <span className="sub">Dhan Order ID</span>
+          <div className="row dhan-id-toggle" style={{ gap: 8 }}>
+            <span className="sub dhan-id-label">
+              <span className="dhan-id-wide">Dhan Order ID</span>
+              <span className="dhan-id-narrow">IDs</span>
+            </span>
             <Switch
               checked={showDhanId}
               onChange={setShowDhanId}
@@ -151,25 +157,23 @@ function RunCard({
         <span className={`tag ${run.side === "BUY" ? "tag-buy" : "tag-sell"}`}>
           {run.side === "BUY" ? "Buy" : "Sell"}
         </span>
-        <span className="run-when">
-          <span className="run-when-title">{istDateTime(run.placedAt)}</span>
-          {!open && (
-            <span className="sub">
-              {preview}
-              {extra > 0 ? ` +${extra}` : ""}
-            </span>
-          )}
+        <span className="run-when-title">{istDateTime(run.placedAt)}</span>
+        <span className="run-preview-slot" aria-hidden={open}>
+          <span className="run-preview sub">
+            {preview}
+            {extra > 0 ? ` +${extra}` : ""}
+          </span>
         </span>
         <span className="run-metrics">
-          <span className="run-metric">
+          <span className="run-metric run-metric-orders">
             <span className="sub">Orders</span>
             <b className="tnum">{run.orderCount}</b>
           </span>
-          <span className="run-metric">
+          <span className="run-metric run-metric-value">
             <span className="sub">Value</span>
             <b className="tnum">{money(run.notional, false)}</b>
           </span>
-          <span className="run-metric">
+          <span className="run-metric run-metric-status">
             <span className="sub">Status</span>
             <span className={`pill ${runPill(run).cls}`}>{runPill(run).text}</span>
           </span>
@@ -190,12 +194,13 @@ function RunCard({
             style={{ overflow: "hidden" }}
           >
             <TableRowSpot
-              className={`table-wrap table-wrap-full${run.orders.length > 1 ? " table-split" : ""}`}
+              className={`table-wrap table-wrap-full run-table${run.orders.length > 1 ? " table-split" : ""}`}
             >
               {splitOrders(run.orders).map((orders, i) => (
                 <OrderTable key={i} orders={orders} showDhanId={showDhanId} />
               ))}
             </TableRowSpot>
+            <OrderCards orders={run.orders} showDhanId={showDhanId} />
           </motion.div>
         )}
       </AnimatePresence>
@@ -257,6 +262,53 @@ function OrderTable({
         ))}
       </tbody>
     </table>
+  );
+}
+
+function OrderCards({
+  orders,
+  showDhanId,
+}: {
+  orders: HistoryOrder[];
+  showDhanId: boolean;
+}) {
+  return (
+    <ul className="order-cards">
+      {orders.map((o) => {
+        const filled = o.filledQty ?? o.quantity;
+        const partial = o.filledQty != null && o.filledQty !== o.quantity;
+        return (
+          <li key={o.id} className="order-card">
+            <div className="order-card-top">
+              <div className="order-card-name">
+                <div className="sym">{o.symbol}</div>
+                {o.error && <div className="sub neg">{o.error}</div>}
+              </div>
+              <span className={`pill ${statusTone(o.status)}`}>
+                {prettyStatus(o.status)}
+              </span>
+            </div>
+            <div className="order-card-meta">
+              <span className="tnum">
+                {filled.toLocaleString("en-IN")}
+                {partial && (
+                  <span className="sub"> of {o.quantity.toLocaleString("en-IN")}</span>
+                )}
+                {" × "}
+                {money(o.avgPrice)}
+              </span>
+              <b className="tnum">{o.orderValue ? money(o.orderValue, false) : "—"}</b>
+            </div>
+            {o.refPrice != null && (
+              <div className="sub">ref {money(o.refPrice)}</div>
+            )}
+            {showDhanId && (
+              <div className="sub">{o.dhanOrderId ?? "—"}</div>
+            )}
+          </li>
+        );
+      })}
+    </ul>
   );
 }
 

@@ -47,13 +47,13 @@ export function Hero({
       </nav>
 
       <div className="hero-actions">
-        <span className={`pill ${open ? "pill-live" : ""}`} title="NSE cash session">
+        <span className={`pill pill-session ${open ? "pill-live" : ""}`} title="NSE cash session">
           <span className={`dot ${open ? "dot-pulse" : ""}`} />
           {open ? "Market open" : "Market closed"}
         </span>
 
         {pricing?.delayedByMinutes ? (
-          <span className="pill" style={{ paddingRight: 6 }}>
+          <span className="pill pill-delay" style={{ paddingRight: 6 }}>
             Yahoo +{pricing.delayedByMinutes}m
             {pricing.latestQuoteTime ? ` · ${istTime(pricing.latestQuoteTime)}` : ""}
             <Help align="right">
