@@ -118,6 +118,7 @@ export function App() {
                   loading={loading}
                   fetchedAt={fetchedAt}
                   onRefresh={() => void loadOverview()}
+                  notify={notify}
                 />
               }
             />
