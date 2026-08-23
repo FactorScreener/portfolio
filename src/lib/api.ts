@@ -115,6 +115,8 @@ export type Plan = {
     investableBase: number;
     tradeValue: number;
     orderCount: number;
+    estimatedCharges: number;
+    cashReserved: number;
     cashAfter: number;
     targetWeightSum: number;
   };

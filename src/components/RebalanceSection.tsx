@@ -278,7 +278,9 @@ export function RebalanceSection({
                 />
                 <Help align="right">
                   Defaults to your Dhan available balance. Override it if yesterday's
-                  sale proceeds have not shown up in the funds API yet.
+                  sale proceeds have not shown up in the funds API yet. The planner
+                  still keeps a slice of this back for statutory charges, so the
+                  account is not left negative when Dhan debits fees.
                 </Help>
               </div>
             )}
@@ -363,7 +365,16 @@ export function RebalanceSection({
                       label={side === "SELL" ? "Proceeds" : "Deploying"}
                       value={money(plan.totals.tradeValue, false)}
                     />
-                    <Metric label="Cash after" value={money(plan.totals.cashAfter, false)} />
+                    {side === "BUY" && plan.totals.estimatedCharges > 0 && (
+                      <Metric
+                        label="Est. charges"
+                        value={money(plan.totals.estimatedCharges, false)}
+                      />
+                    )}
+                    <Metric
+                      label="Cash after"
+                      value={money(plan.totals.cashAfter, false)}
+                    />
                   </span>
                 </div>
 
@@ -397,7 +408,7 @@ export function RebalanceSection({
         description={`Market orders on NSE, CNC delivery. ${
           side === "SELL"
             ? `Estimated proceeds ${money(plan?.totals.tradeValue ?? 0, false)}.`
-            : `Estimated spend ${money(plan?.totals.tradeValue ?? 0, false)}.`
+            : `Estimated spend ${money(plan?.totals.tradeValue ?? 0, false)}, plus about ${money(plan?.totals.estimatedCharges ?? 0, false)} in statutory charges.`
         } Market orders fill at whatever the book offers, so the final amount will differ.`}
         actions={
           <>
