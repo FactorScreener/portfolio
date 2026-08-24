@@ -1,4 +1,9 @@
 import YahooFinance from "yahoo-finance2";
+import {
+  parseSplitRatio,
+  splitRewriteActive,
+  type SplitEvent,
+} from "./splits.ts";
 
 const yf = new YahooFinance({
   suppressNotices: ["yahooSurvey", "ripHistorical"],
@@ -17,6 +22,8 @@ export type Quote = {
   currency: string | null;
   /** True when the quote is from today's session rather than a stale close. */
   intraday: boolean;
+  /** Most recent split Yahoo is advertising on this quote, if any. */
+  split: SplitEvent | null;
 };
 
 type CacheEntry = { at: number; quote: Quote };
@@ -51,6 +58,89 @@ function istDayStart(now = new Date()): number {
 function toYahoo(symbol: string): string {
   const s = symbol.trim().toUpperCase();
   return s.endsWith(".NS") ? s : `${s}.NS`;
+}
+
+function splitFromQuotePayload(q: any): SplitEvent | null {
+  const actions = q?.corporateActions;
+  if (!Array.isArray(actions)) return null;
+  let best: SplitEvent | null = null;
+  for (const a of actions) {
+    const meta = a?.meta;
+    if (!meta || String(meta.eventType).toUpperCase() !== "SPLIT") continue;
+    const ratio = parseSplitRatio(String(meta.splitRatio ?? ""));
+    const atMs = Number(meta.dateEpochMs);
+    if (!(ratio > 1) || !Number.isFinite(atMs)) continue;
+    if (!best || atMs > best.atMs) best = { ratio, atMs };
+  }
+  return best;
+}
+
+function splitFromChartPayload(events: any): SplitEvent | null {
+  const rows = events?.splits;
+  const list = Array.isArray(rows) ? rows : rows ? Object.values(rows) : [];
+  let best: SplitEvent | null = null;
+  for (const s of list as any[]) {
+    const neu = Number(s.numerator);
+    const den = Number(s.denominator);
+    const ratio =
+      neu > 0 && den > 0 ? neu / den : parseSplitRatio(String(s.splitRatio ?? ""));
+    const atMs = s.date instanceof Date ? s.date.getTime() : Date.parse(s.date);
+    if (!(ratio > 1) || !Number.isFinite(atMs)) continue;
+    if (!best || atMs > best.atMs) best = { ratio, atMs };
+  }
+  return best;
+}
+
+const SPLIT_CACHE_MS = 30 * 60_000;
+const splitCache = new Map<string, { at: number; event: SplitEvent | null }>();
+
+/**
+ * Recent splits for holdings. Prefers the corporate-action flag on the quote
+ * we already fetched; falls back to the chart event stream for names Yahoo
+ * has already dropped from that flag.
+ */
+export async function getSplitEvents(
+  symbols: string[],
+  quotes: Map<string, Quote>,
+  now = new Date(),
+): Promise<Map<string, SplitEvent>> {
+  const wanted = [...new Set(symbols.map((s) => s.trim().toUpperCase()).filter(Boolean))];
+  const out = new Map<string, SplitEvent>();
+  const needChart: string[] = [];
+
+  for (const s of wanted) {
+    const fromQuote = quotes.get(s)?.split;
+    if (fromQuote && splitRewriteActive(fromQuote.atMs, now)) {
+      out.set(s, fromQuote);
+      continue;
+    }
+    const hit = splitCache.get(s);
+    if (hit && Date.now() - hit.at < SPLIT_CACHE_MS) {
+      if (hit.event && splitRewriteActive(hit.event.atMs, now)) out.set(s, hit.event);
+      continue;
+    }
+    needChart.push(s);
+  }
+
+  const period1 = new Date(now.getTime() - 21 * 86_400_000);
+  for (let i = 0; i < needChart.length; i += 5) {
+    const batch = needChart.slice(i, i + 5);
+    await Promise.all(
+      batch.map(async (s) => {
+        let event: SplitEvent | null = null;
+        try {
+          const chart = await yf.chart(toYahoo(s), { period1, events: "split" });
+          event = splitFromChartPayload(chart?.events);
+        } catch {
+          /* leave this symbol without a split */
+        }
+        splitCache.set(s, { at: Date.now(), event });
+        if (event && splitRewriteActive(event.atMs, now)) out.set(s, event);
+      }),
+    );
+  }
+
+  return out;
 }
 
 export async function getQuotes(symbols: string[]): Promise<Map<string, Quote>> {
@@ -104,6 +194,7 @@ export async function getQuotes(symbols: string[]): Promise<Map<string, Quote>> 
         delayedByMinutes: q.exchangeDataDelayedBy ?? null,
         currency: q.currency ?? null,
         intraday: t !== null && t >= dayStart,
+        split: splitFromQuotePayload(q),
       };
       cache.set(plain, { at: now, quote });
       out.set(plain, quote);

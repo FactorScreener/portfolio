@@ -3,7 +3,9 @@ import { estimateNseCncBuyCharges, maxBuyNotional } from "./charges.ts";
 import type { DhanHolding, DhanPosition } from "./dhan.ts";
 import { resolve, type Instrument } from "./instruments.ts";
 import { buildExposure, nonEquityPositions } from "./portfolio.ts";
-import { getQuotes, type Quote } from "./quotes.ts";
+import { pickMarkPrice } from "./mark.ts";
+import { getQuotes, getSplitEvents, type Quote } from "./quotes.ts";
+import { splitHoldingWarning, splitRatiosForHoldings } from "./splits.ts";
 
 export type Side = "BUY" | "SELL";
 
@@ -159,7 +161,29 @@ export async function buildPlan(
   // ---- Current exposure --------------------------------------------------
   // Holdings alone under-count: shares bought today sit in positions until
   // they settle, and shares sold today are still in holdings.
-  const exposures = buildExposure(holdings, positions);
+  const holdingSymbols = [
+    ...new Set(holdings.map((h) => h.tradingSymbol.trim().toUpperCase()).filter(Boolean)),
+  ];
+
+  let quotes = new Map<string, Quote>();
+  try {
+    quotes = await getQuotes(holdingSymbols);
+  } catch (e) {
+    warnings.push(`Price lookup failed: ${(e as Error).message}`);
+  }
+
+  let splitEvents = new Map<string, Awaited<ReturnType<typeof getSplitEvents>> extends Map<string, infer V> ? V : never>();
+  try {
+    splitEvents = await getSplitEvents(holdingSymbols, quotes);
+  } catch (e) {
+    warnings.push(`Split lookup failed: ${(e as Error).message}`);
+  }
+
+  const exposures = buildExposure(
+    holdings,
+    positions,
+    splitRatiosForHoldings(holdings, splitEvents, quotes),
+  );
 
   const untradeable = [...exposures.values()].filter((e) => e.hasUntradeablePosition);
   if (untradeable.length > 0) {
@@ -174,29 +198,35 @@ export async function buildPlan(
     );
   }
 
+  const splitAdjusted = [...exposures.values()].filter((e) => e.splitRatio > 1);
+  for (const e of splitAdjusted) {
+    const rawQty = e.holdingQty / e.splitRatio;
+    warnings.push(splitHoldingWarning(e.symbol, e.splitRatio, rawQty, e.holdingQty));
+  }
+
   // ---- Prices ------------------------------------------------------------
   const universe = new Set<string>([...exposures.keys(), ...resolved.keys()]);
-  // Dhan's holdings feed already carries a real-time LTP, so Yahoo is only
-  // needed for names with no settled holding behind them.
+  // Dhan's holdings feed already carries a live LTP. Yahoo is only needed for
+  // names with no settled holding behind them.
+
   const needQuote = [...universe].filter(
-    (s) => !((exposures.get(s)?.lastTradedPrice ?? 0) > 0),
+    (s) => !quotes.has(s) && !((exposures.get(s)?.lastTradedPrice ?? 0) > 0),
   );
 
-  let quotes = new Map<string, Quote>();
-  try {
-    quotes = await getQuotes(needQuote);
-  } catch (e) {
-    warnings.push(`Price lookup failed: ${(e as Error).message}`);
+  if (needQuote.length > 0) {
+    try {
+      const extra = await getQuotes(needQuote);
+      for (const [k, v] of extra) quotes.set(k, v);
+    } catch (e) {
+      warnings.push(`Price lookup failed: ${(e as Error).message}`);
+    }
   }
 
   const priceOf = (
     symbol: string,
   ): { price: number | null; source: "dhan" | "yahoo" | null } => {
     const e = exposures.get(symbol);
-    if (e && e.lastTradedPrice > 0) return { price: e.lastTradedPrice, source: "dhan" };
-    const q = quotes.get(symbol);
-    if (q && q.price > 0) return { price: q.price, source: "yahoo" };
-    return { price: null, source: null };
+    return pickMarkPrice(e?.lastTradedPrice ?? 0, quotes.get(symbol));
   };
 
   const quoteList = [...quotes.values()];

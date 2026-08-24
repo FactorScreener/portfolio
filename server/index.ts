@@ -35,8 +35,10 @@ import {
   syncInstruments,
   syncedAt,
 } from "./instruments.ts";
-import { getQuotes, nseSessionOpen } from "./quotes.ts";
+import { pickMarkPrice } from "./mark.ts";
+import { getQuotes, getSplitEvents, nseSessionOpen } from "./quotes.ts";
 import { buildPlan, type PlanRequest } from "./rebalance.ts";
+import { splitRatiosForHoldings, type SplitEvent } from "./splits.ts";
 
 const app = new Hono();
 const api = new Hono();
@@ -133,8 +135,13 @@ type Enriched = {
  * today, and still count anything sold today — see server/portfolio.ts.
  */
 async function enrichPortfolio(holdings: DhanHolding[], positions: DhanPosition[]) {
-  const exposures = buildExposure(holdings, positions);
-  const symbols = [...exposures.keys()];
+  const symbols = [
+    ...new Set(
+      [...holdings.map((h) => h.tradingSymbol), ...positions.map((p) => p.tradingSymbol)]
+        .map((s) => s.trim().toUpperCase())
+        .filter(Boolean),
+    ),
+  ];
   // Dhan gives a live LTP but no previous close, so Yahoo fills in the day
   // move. If Yahoo is unreachable the P&L numbers still work.
   let quotes = new Map<string, Awaited<ReturnType<typeof getQuotes>> extends Map<string, infer V> ? V : never>();
@@ -144,11 +151,27 @@ async function enrichPortfolio(holdings: DhanHolding[], positions: DhanPosition[
     console.error("quotes:", (e as Error).message);
   }
 
+  let splitEvents = new Map<string, SplitEvent>();
+  try {
+    splitEvents = await getSplitEvents(
+      holdings.map((h) => h.tradingSymbol),
+      quotes,
+    );
+  } catch (e) {
+    console.error("splits:", (e as Error).message);
+  }
+
+  const exposures = buildExposure(
+    holdings,
+    positions,
+    splitRatiosForHoldings(holdings, splitEvents, quotes),
+  );
+
   const rows: Enriched[] = [...exposures.values()]
     .filter((e) => e.totalQty !== 0)
     .map((e) => {
       const q = quotes.get(e.symbol);
-      const price = e.lastTradedPrice > 0 ? e.lastTradedPrice : (q?.price ?? e.avgCostPrice);
+      const price = pickMarkPrice(e.lastTradedPrice, q).price ?? e.avgCostPrice;
       const currentValue = e.totalQty * price;
       const prevClose = q?.previousClose ?? null;
       // Settled stock moves with the day; today's trades are marked from their

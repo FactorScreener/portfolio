@@ -44,6 +44,8 @@ export type Exposure = {
   positionProducts: string[];
   /** True when part of the exposure sits in a product a CNC sell cannot touch. */
   hasUntradeablePosition: boolean;
+  /** Holdings qty multiplier applied for an unadjusted split. 1 if none. */
+  splitRatio: number;
 };
 
 const key = (s: string) => s.trim().toUpperCase();
@@ -82,6 +84,7 @@ export function realizedToday(positions: DhanPosition[]): number {
 export function buildExposure(
   holdings: DhanHolding[],
   positions: DhanPosition[],
+  splitRatios: Map<string, number> = new Map(),
 ): Map<string, Exposure> {
   const open = openEquityPositions(positions);
   const out = new Map<string, Exposure>();
@@ -103,6 +106,7 @@ export function buildExposure(
     positionUnrealizedPnl: 0,
     positionProducts: [],
     hasUntradeablePosition: false,
+    splitRatio: 1,
   });
 
   const row = (symbol: string): Exposure => {
@@ -116,10 +120,16 @@ export function buildExposure(
 
   for (const h of holdings) {
     const e = row(key(h.tradingSymbol));
+    const ratio = splitRatios.get(key(h.tradingSymbol)) ?? 1;
     e.securityId = h.securityId;
     e.isin = h.isin;
-    e.holdingQty += h.totalQty;
+    e.splitRatio = Math.max(e.splitRatio, ratio);
+    // Qty and average stay on the old share while LTP is already post-split.
+    // Invested is qty × avg, so leave it on Dhan's figures; multiplying qty
+    // alone halves the implied average and doubles current value (qty × LTP).
+    e.holdingQty += h.totalQty * ratio;
     // availableQty is the free-to-sell slice; T1 stock cannot be delivered yet.
+    // Extra split shares are not deliverable until the demat credit lands.
     e.settledQty += h.availableQty;
     e.invested += h.totalQty * h.avgCostPrice;
     e.lastTradedPrice = h.lastTradedPrice;
