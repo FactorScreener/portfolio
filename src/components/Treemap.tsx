@@ -161,6 +161,12 @@ function TreemapTooltip({ hover }: { hover: NonNullable<Hover> }) {
           {h.totalQty} × {money(h.price)}
         </b>
       </div>
+      {(h.splitRatio ?? 1) > 1 && (
+        <div className="tooltip-row">
+          <span>Dhan still reports</span>
+          <b>{h.totalQty / (h.splitRatio ?? 1)} shares</b>
+        </div>
+      )}
       {h.positionQty !== 0 && (
         <div className="tooltip-row">
           <span>{h.positionQty > 0 ? "Bought today" : "Sold today"}</span>

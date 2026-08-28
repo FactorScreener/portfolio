@@ -19,6 +19,7 @@ export type Holding = {
   dayChange: number;
   dayChangePct: number;
   realizedPnl: number;
+  splitRatio?: number;
 };
 
 export type Position = {
@@ -47,6 +48,13 @@ export type Summary = {
   positionsValue: number;
   realizedPnl: number;
   ignoredPositions: number;
+  splitAdjusted?: {
+    symbol: string;
+    ratio: number;
+    dhanQty: number;
+    qty: number;
+    extraValue: number;
+  }[];
 };
 
 export type Pricing = {

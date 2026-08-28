@@ -15,13 +15,13 @@ function holding(over: Partial<DhanHolding> = {}): DhanHolding {
     tradingSymbol: "TDPOWERSYS",
     securityId: "123",
     isin: "INE",
-    totalQty: 100,
-    dpQty: 100,
+    totalQty: 95,
+    dpQty: 95,
     t1Qty: 0,
-    availableQty: 100,
+    availableQty: 95,
     collateralQty: 0,
-    avgCostPrice: 400,
-    lastTradedPrice: 320,
+    avgCostPrice: 1216.18,
+    lastTradedPrice: 752.7,
     ...over,
   };
 }
@@ -48,22 +48,27 @@ describe("splitRewriteActive", () => {
 });
 
 describe("dhanNeedsSplitRewrite", () => {
-  test("rewrites when average is still on the old share", () => {
+  test("rewrites when average is still the pre-split price", () => {
     expect(
-      dhanNeedsSplitRewrite({ avgCost: 400, ltp: 320, ratio: 2 }),
+      dhanNeedsSplitRewrite({ avgCost: 1216.18, ltp: 752.7, ratio: 2 }),
     ).toBe(true);
   });
 
-  test("skips when Dhan has already halved the average", () => {
+  test("skips when average already sits next to LTP, even if the stock is up", () => {
     expect(
-      dhanNeedsSplitRewrite({ avgCost: 200, ltp: 320, ratio: 2 }),
+      dhanNeedsSplitRewrite({
+        avgCost: 627.7222,
+        ltp: 752.7,
+        ratio: 2,
+        yahooPrice: 752.7,
+      }),
     ).toBe(false);
   });
 
-  test("rewrites when Yahoo is still on the old print and Dhan LTP is not", () => {
+  test("does not treat a stale Yahoo print as proof that quantity is unadjusted", () => {
     expect(
-      dhanNeedsSplitRewrite({ avgCost: 200, ltp: 320, ratio: 2, yahooPrice: 640 }),
-    ).toBe(true);
+      dhanNeedsSplitRewrite({ avgCost: 627.72, ltp: 752.7, ratio: 2, yahooPrice: 1505.4 }),
+    ).toBe(false);
   });
 });
 
@@ -75,32 +80,31 @@ describe("buildExposure with injected split ratios", () => {
       new Map([["TDPOWERSYS", 2]]),
     );
     const e = map.get("TDPOWERSYS")!;
-    expect(e.holdingQty).toBe(200);
-    expect(e.totalQty).toBe(200);
-    expect(e.invested).toBe(40_000);
-    expect(e.avgCostPrice).toBe(200);
-    expect(e.lastTradedPrice).toBe(320);
-    expect(e.totalQty * e.lastTradedPrice).toBe(64_000);
+    expect(e.holdingQty).toBe(190);
+    expect(e.totalQty).toBe(190);
+    expect(e.invested).toBeCloseTo(95 * 1216.18);
+    expect(e.avgCostPrice).toBeCloseTo(608.09);
+    expect(e.lastTradedPrice).toBe(752.7);
     expect(e.splitRatio).toBe(2);
-    expect(e.settledQty).toBe(100);
-    expect(e.sellableQty).toBe(100);
+    expect(e.settledQty).toBe(95);
+    expect(e.sellableQty).toBe(95);
   });
 
   test("leaves the holding alone when no split ratio is supplied", () => {
     const e = buildExposure([holding()], []).get("TDPOWERSYS")!;
-    expect(e.holdingQty).toBe(100);
-    expect(e.avgCostPrice).toBe(400);
+    expect(e.holdingQty).toBe(95);
+    expect(e.avgCostPrice).toBe(1216.18);
     expect(e.splitRatio).toBe(1);
   });
 
-  test("splitRatiosForHoldings only flags names whose book still looks pre-split", () => {
+  test("splitRatiosForHoldings leaves Dhan's post-split TDPOWERSYS book alone", () => {
     const ev: SplitEvent = { ratio: 2, atMs: Date.parse("2026-08-24T00:00:00+05:30") };
     const events = new Map([["TDPOWERSYS", ev]]);
-    const quotes = new Map([["TDPOWERSYS", { price: 320 }]]);
+    const quotes = new Map([["TDPOWERSYS", { price: 752.7 }]]);
     const unadjusted = splitRatiosForHoldings([holding()], events, quotes);
     expect(unadjusted.get("TDPOWERSYS")).toBe(2);
     const adjusted = splitRatiosForHoldings(
-      [holding({ avgCostPrice: 200 })],
+      [holding({ totalQty: 216, availableQty: 216, avgCostPrice: 627.7222 })],
       events,
       quotes,
     );

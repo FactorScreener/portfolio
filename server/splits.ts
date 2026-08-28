@@ -39,10 +39,12 @@ export function splitRewriteActive(atMs: number, now = new Date(), windowDays = 
 }
 
 /**
- * Dhan often updates LTP on ex-date while leaving quantity and average on the
- * old share. Rewrite when the average still looks like the old share, or when
- * Yahoo is still printing the old price against Dhan's new LTP.
- * Skip when Dhan has already halved the average (avg × ratio sits near LTP).
+ * Dhan sometimes updates LTP on ex-date while quantity and average stay on the
+ * old share. The tell is the average: unadjusted it sits near ratio × LTP,
+ * adjusted it sits near LTP (a winner or loser, not twice the print).
+ *
+ * Yahoo printing the old price is not enough. That only means Yahoo is stale;
+ * it does not mean Dhan's quantity is still pre-split.
  */
 export function dhanNeedsSplitRewrite(input: {
   avgCost: number;
@@ -53,15 +55,11 @@ export function dhanNeedsSplitRewrite(input: {
   const { avgCost, ltp, ratio } = input;
   if (!(ratio > 1.001 && avgCost > 0 && ltp > 0)) return false;
 
-  const yahoo = input.yahooPrice;
-  if (typeof yahoo === "number" && yahoo > 0) {
-    const yahooOverDhan = yahoo / ltp;
-    if (Math.abs(yahooOverDhan - ratio) / ratio < 0.2) return true;
-  }
-
-  const scaledAvg = avgCost * ratio;
-  const alreadyAdjusted = scaledAvg <= ltp * 1.25 && avgCost <= ltp * 1.05;
-  return !alreadyAdjusted;
+  const rel = avgCost / ltp;
+  const nearerOldShare = Math.abs(rel - ratio) < Math.abs(rel - 1);
+  // For a 2-for-1, avg must be at least ~1.4× LTP before we touch quantity.
+  const clearlyOld = rel >= 1 + (ratio - 1) * 0.4;
+  return nearerOldShare && clearlyOld;
 }
 
 export function splitRatiosForHoldings(

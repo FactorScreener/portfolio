@@ -128,6 +128,8 @@ type Enriched = {
   dayChange: number;
   dayChangePct: number;
   realizedPnl: number;
+  /** >1 when Dhan's quantity is still on the old share after a split. */
+  splitRatio: number;
 };
 
 /**
@@ -203,6 +205,7 @@ async function enrichPortfolio(holdings: DhanHolding[], positions: DhanPosition[
         dayChangePct:
           currentValue - dayChange > 0 ? (dayChange / (currentValue - dayChange)) * 100 : 0,
         realizedPnl: e.realizedPnl,
+        splitRatio: e.splitRatio,
       };
     })
     .sort((a, b) => b.currentValue - a.currentValue);
@@ -233,6 +236,16 @@ async function enrichPortfolio(holdings: DhanHolding[], positions: DhanPosition[
       realizedPnl: realizedToday(positions),
       /** F&O and other non-cash positions this app does not model. */
       ignoredPositions: nonEquityPositions(positions).length,
+      /** Names whose quantity we rewrote because Dhan has not booked the split. */
+      splitAdjusted: rows
+        .filter((r) => r.splitRatio > 1)
+        .map((r) => ({
+          symbol: r.tradingSymbol,
+          ratio: r.splitRatio,
+          dhanQty: r.holdingQty / r.splitRatio,
+          qty: r.holdingQty,
+          extraValue: r.currentValue - r.currentValue / r.splitRatio,
+        })),
     },
     pricing: {
       marketOpen: nseSessionOpen(),

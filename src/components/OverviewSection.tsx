@@ -62,7 +62,8 @@ export function OverviewSection({ data }: { data: Overview | null }) {
             <>
               Quantity × last traded price across {s.count} scrips — your settled
               holdings plus today's open positions, so anything bought this
-              morning is already counted.
+              morning is already counted. After a split Dhan has not booked, quantity
+              is rewritten so this is above the number in the Dhan app.
               {s.positionsCount > 0 && (
                 <>
                   {" "}
@@ -144,6 +145,21 @@ export function OverviewSection({ data }: { data: Overview | null }) {
           </span>
         )}
       </div>
+
+      {(s.splitAdjusted ?? []).length > 0 && (
+        <div className="banner banner-info" style={{ marginTop: 14 }}>
+          <div>
+            {(s.splitAdjusted ?? []).map((a) => (
+              <div key={a.symbol}>
+                <b>{a.symbol}</b> still has a {a.ratio}-for-1 split Dhan has not
+                booked. Dhan shows {a.dhanQty} shares; this page counts {a.qty},
+                so current value and overall profit sit {money(a.extraValue)}{" "}
+                above the broker until the extra shares credit.
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </>
   );
 }
