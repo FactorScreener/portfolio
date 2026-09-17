@@ -320,16 +320,17 @@ api.post("/rebalance/plan", async (c) => {
   await syncInstruments().catch(() => {});
   const input = planSchema.parse(await c.req.json());
 
-  const [holdings, positions, funds] = await Promise.all([
+  const [holdings, positions, funds, orders] = await Promise.all([
     getHoldings(creds),
     getPositions(creds),
     getFunds(creds),
+    getOrders(creds),
   ]);
   const req: PlanRequest = {
     ...input,
     availableCash: input.availableCash ?? funds.availabelBalance,
   };
-  const plan = await buildPlan(req, holdings ?? [], positions ?? []);
+  const plan = await buildPlan(req, holdings ?? [], positions ?? [], orders ?? []);
   return c.json(plan);
 });
 

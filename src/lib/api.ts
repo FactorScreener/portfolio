@@ -125,6 +125,7 @@ export type Plan = {
     orderCount: number;
     estimatedCharges: number;
     cashReserved: number;
+    priorChargesReserved: number;
     cashAfter: number;
     targetWeightSum: number;
   };

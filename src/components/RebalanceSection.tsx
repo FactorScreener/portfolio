@@ -191,9 +191,9 @@ export function RebalanceSection({
               ]}
             />
             <Help>
-              Cash from a sale settles the next trading day, so a mirror runs over two
-              days: sell today, buy tomorrow once the proceeds land. Each run only ever
-              sends one side.
+              Each run sends one side. After selling, recalculate a buy plan using
+              the cash Dhan makes available. Charges from today's fills are
+              reserved before sizing the next orders.
             </Help>
             <span className="grow" />
             <span className="pill">NSE · CNC · Market</span>
@@ -301,10 +301,9 @@ export function RebalanceSection({
                   placeholder={money(overview?.funds.availabelBalance ?? 0, false)}
                 />
                 <Help align="right">
-                  Defaults to your Dhan available balance. Override it if yesterday's
-                  sale proceeds have not shown up in the funds API yet. The planner
-                  still keeps a slice of this back for statutory charges, so the
-                  account is not left negative when Dhan debits fees.
+                  Defaults to your Dhan available balance. Any override is also before
+                  charges. The planner reserves estimated fees from today's fills
+                  and the new buy orders.
                 </Help>
               </div>
             )}
@@ -389,10 +388,16 @@ export function RebalanceSection({
                       label={side === "SELL" ? "Proceeds" : "Deploying"}
                       value={money(plan.totals.tradeValue, false)}
                     />
-                    {side === "BUY" && plan.totals.estimatedCharges > 0 && (
+                    {plan.totals.estimatedCharges > 0 && (
                       <Metric
                         label="Est. charges"
                         value={money(plan.totals.estimatedCharges, false)}
+                      />
+                    )}
+                    {plan.totals.priorChargesReserved > 0 && (
+                      <Metric
+                        label="Earlier trades reserve"
+                        value={money(plan.totals.priorChargesReserved)}
                       />
                     )}
                     <Metric
@@ -431,7 +436,7 @@ export function RebalanceSection({
         title={`Place ${orderRows.length} ${side === "SELL" ? "sell" : "buy"} order${orderRows.length === 1 ? "" : "s"}?`}
         description={`Market orders on NSE, CNC delivery. ${
           side === "SELL"
-            ? `Estimated proceeds ${money(plan?.totals.tradeValue ?? 0, false)}.`
+            ? `Estimated proceeds ${money(plan?.totals.tradeValue ?? 0, false)}, less about ${money(plan?.totals.estimatedCharges ?? 0)} in charges including DP.`
             : `Estimated spend ${money(plan?.totals.tradeValue ?? 0, false)}, plus about ${money(plan?.totals.estimatedCharges ?? 0, false)} in statutory charges.`
         } Market orders fill at whatever the book offers, so the final amount will differ.`}
         actions={

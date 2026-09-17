@@ -1,6 +1,6 @@
 import { applyCap, CAP, normalise } from "../shared/weights.ts";
-import { estimateNseCncBuyCharges, maxBuyNotional } from "./charges.ts";
-import type { DhanHolding, DhanPosition } from "./dhan.ts";
+import { estimateNseCncBuyCharges, estimateNseCncSellCharges, estimateTodaysCharges, maxBuyNotional } from "./charges.ts";
+import type { DhanHolding, DhanOrder, DhanPosition } from "./dhan.ts";
 import { resolve, type Instrument } from "./instruments.ts";
 import { buildExposure, nonEquityPositions } from "./portfolio.ts";
 import { pickMarkPrice } from "./mark.ts";
@@ -70,10 +70,12 @@ export type Plan = {
     /** Value of orders that will actually be sent. */
     tradeValue: number;
     orderCount: number;
-    /** Statutory NSE CNC buy charges on `tradeValue`. Zero on a sell run. */
+    /** Incremental NSE CNC charges for this plan, including DP on sells. */
     estimatedCharges: number;
-    /** Cash the BUY leg refused to spend so statutory charges still fit. */
+    /** Total estimated charge reserve for earlier fills and this plan. */
     cashReserved: number;
+    /** Estimated charges on today's fills, reserved until the day rolls over. */
+    priorChargesReserved: number;
     cashAfter: number;
     targetWeightSum: number;
   };
@@ -102,6 +104,7 @@ export async function buildPlan(
   req: PlanRequest,
   holdings: DhanHolding[],
   positions: DhanPosition[] = [],
+  orders: DhanOrder[] = [],
 ): Promise<Plan> {
   const warnings: string[] = [];
   const unresolved: string[] = [];
@@ -251,7 +254,12 @@ export async function buildPlan(
   }
 
   const availableCash = Math.max(0, req.availableCash);
-  const investableBase = portfolioValue + availableCash;
+  const prior = estimateTodaysCharges(orders);
+  const cashAfterPriorCharges = availableCash - prior.charges;
+  const investableBase = portfolioValue + Math.max(0, cashAfterPriorCharges);
+  if (prior.charges > 0) {
+    warnings.push(`Reserving ₹${prior.charges.toFixed(2)} for today's filled delivery orders, including sell DP charges. This may reserve extra if Dhan has already debited some fees.`);
+  }
   const buffer = Math.min(0.2, Math.max(0, req.cashBufferPct));
   const targetWeightSum = [...weights.values()].reduce((s, v) => s + v, 0);
 
@@ -333,8 +341,8 @@ export async function buildPlan(
       d.action = d.targetWeight === 0 || qty >= d.currentQty ? "exit" : "sell";
     }
   } else {
-    const spendable = maxBuyNotional(availableCash);
-    const heldBack = Math.max(0, availableCash - spendable);
+    const spendable = maxBuyNotional(cashAfterPriorCharges, prior.buyTurnover);
+    const heldBack = Math.max(0, cashAfterPriorCharges - spendable);
 
     const candidates = drafts.filter(
       (d) => d.targetWeight > 0 && d.driftValue > 0 && d.price !== null && d.securityId,
@@ -402,9 +410,14 @@ export async function buildPlan(
   const traded = rows.filter((r) => r.side && r.quantity > 0);
   const tradeValue = traded.reduce((s, r) => s + r.orderValue, 0);
   const estimatedCharges =
-    req.side === "BUY" ? estimateNseCncBuyCharges(tradeValue) : 0;
+    req.side === "BUY"
+      ? estimateNseCncBuyCharges(prior.buyTurnover + tradeValue) - estimateNseCncBuyCharges(prior.buyTurnover)
+      : estimateNseCncSellCharges(prior.sellTurnover + tradeValue, prior.sellInstructions + traded.length)
+        - estimateNseCncSellCharges(prior.sellTurnover, prior.sellInstructions);
   const cashReserved =
-    req.side === "BUY" ? Math.max(0, availableCash - maxBuyNotional(availableCash)) : 0;
+    prior.charges + (req.side === "BUY"
+      ? Math.max(0, cashAfterPriorCharges - maxBuyNotional(cashAfterPriorCharges, prior.buyTurnover))
+      : estimatedCharges);
 
   return {
     side: req.side,
@@ -418,10 +431,11 @@ export async function buildPlan(
       orderCount: traded.length,
       estimatedCharges,
       cashReserved,
+      priorChargesReserved: prior.charges,
       cashAfter:
         req.side === "BUY"
-          ? availableCash - tradeValue - estimatedCharges
-          : availableCash + tradeValue,
+          ? cashAfterPriorCharges - tradeValue - estimatedCharges
+          : cashAfterPriorCharges + tradeValue - estimatedCharges,
       targetWeightSum,
     },
     unresolved,

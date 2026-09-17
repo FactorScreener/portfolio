@@ -8,6 +8,10 @@ The overview shows invested value, current value, total P&L, and today's change,
 
 The rebalance planner takes a target basket (typed, pasted, or CSV) and computes the whole-share buy and sell orders to get there. You review the plan, then it places the orders on Dhan. The order log records every order the app places, locally on your computer.
 
+The planner estimates NSE delivery charges using [Dhan's pricing](https://dhan.co/pricing/). Sell estimates include DP charges of ₹12.50 plus GST per executed sell order. Before sizing buys, it reserves estimated charges from today's filled NSE CNC orders, including earlier buys and sells. Sell previews show proceeds after estimated charges. Recalculate after sales fill to use the balance Dhan makes available; unfilled sale proceeds are never added to buying power.
+
+The reserve comes from Dhan's current day order book, so it also covers orders placed outside this app and resets with that book on the next trading day. It applies to cash overrides too. Estimates assume ordinary equity delivery, and can exceed actual charges when Dhan groups DP debits, applies ETF exemptions, or has already deducted fees from the available balance.
+
 ## Requirements
 
 - A Dhan account
