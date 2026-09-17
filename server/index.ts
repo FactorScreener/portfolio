@@ -308,6 +308,7 @@ const planSchema = z.object({
     z.object({ symbol: z.string(), rawWeight: z.number().nullable().optional() }),
   ),
   weightMode: z.enum(["equal", "column"]).default("equal"),
+  invertWeights: z.boolean().default(false),
   capAt5Pct: z.boolean().default(false),
   cashBufferPct: z.number().min(0).max(0.2).default(0),
   availableCash: z.number().min(0).optional(),

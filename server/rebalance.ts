@@ -20,6 +20,7 @@ export type PlanRequest = {
   targets: TargetInput[];
   /** Normalise the CSV column into weights, or ignore it and split evenly. */
   weightMode: "equal" | "column";
+  invertWeights?: boolean;
   capAt5Pct: boolean;
   /** Fraction of investable value held back for slippage on BUY. */
   cashBufferPct: number;
@@ -146,7 +147,7 @@ export async function buildPlan(
   } else {
     for (const s of resolved.keys()) weights.set(s, 1);
   }
-  weights = normalise(weights);
+  weights = normalise(weights, req.weightMode === "column" && req.invertWeights);
 
   if (req.capAt5Pct) {
     const n = weights.size;

@@ -7,7 +7,13 @@
 /** No single stock may exceed this share of the portfolio. */
 export const CAP = 0.05;
 
-export function normalise(weights: Map<string, number>): Map<string, number> {
+export function normalise(weights: Map<string, number>, invert = false): Map<string, number> {
+  if (invert) {
+    const positive = [...weights].filter(([, v]) => Number.isFinite(v) && v > 0);
+    // Scaling reciprocals by the smallest value avoids overflow for tiny inputs.
+    const smallest = positive.reduce((min, [, v]) => Math.min(min, v), Infinity);
+    weights = new Map(positive.map(([k, v]) => [k, smallest / v]));
+  }
   const sum = [...weights.values()].reduce((s, v) => s + v, 0);
   if (sum <= 0) return weights;
   return new Map([...weights].map(([k, v]) => [k, v / sum]));

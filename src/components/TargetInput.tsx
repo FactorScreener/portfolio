@@ -25,12 +25,14 @@ export function TargetInput({
   onChange,
   notify,
   capAt5Pct,
+  invertWeights,
 }: {
   source: TargetSource;
   onChange: (s: TargetSource) => void;
   notify: (kind: "ok" | "err", text: string) => void;
   /** Mirrored in the preview's weight column so the toggle has a visible effect. */
   capAt5Pct: boolean;
+  invertWeights: boolean;
 }) {
   // CSV leads by default; an already-picked ticker list keeps its tab so
   // reopening the step doesn't hide it.
@@ -74,6 +76,7 @@ export function TargetInput({
           onClear={() => onChange({ kind: "tickers", symbols: [] })}
           notify={notify}
           capAt5Pct={capAt5Pct}
+          invertWeights={invertWeights}
         />
       )}
     </div>
@@ -292,6 +295,7 @@ function CsvEntry({
   onClear,
   notify,
   capAt5Pct,
+  invertWeights,
 }: {
   sheet: Sheet | null;
   weightColumn: string | null;
@@ -300,6 +304,7 @@ function CsvEntry({
   onClear: () => void;
   notify: (kind: "ok" | "err", text: string) => void;
   capAt5Pct: boolean;
+  invertWeights: boolean;
 }) {
   const [over, setOver] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -377,11 +382,12 @@ function CsvEntry({
     for (const r of sheet.rows) {
       const symbol = String(r[sheet.symbolColumn] ?? "").trim().toUpperCase();
       if (!symbol) continue;
-      const v = weightColumn ? Math.max(0, toNumber(r[weightColumn]) ?? 0) : 1;
-      if (weightColumn && v <= 0) continue; // dropped by the planner
-      raw.set(symbol, (raw.get(symbol) ?? 0) + v);
+      const v = weightColumn ? toNumber(r[weightColumn]) ?? 0 : 1;
+      raw.set(symbol, weightColumn ? (raw.get(symbol) ?? 0) + v : 1);
     }
-    const normalised = normalise(raw);
+    const positive = new Map([...raw].filter(([, v]) => v > 0));
+    const usable = positive.size > 0 ? positive : new Map([...raw.keys()].map((s) => [s, 1]));
+    const normalised = normalise(usable, Boolean(weightColumn) && invertWeights);
     return capAt5Pct ? applyCap(normalised) : normalised;
   })();
 
@@ -443,6 +449,7 @@ function CsvEntry({
               Pick a numeric column and each row's weight becomes its share of
               that column's total. Leave it on Equal weight to split the basket
               evenly instead.
+              Turn on Invert weights below to give lower values larger shares.
             </Help>
           </label>
           <Dropdown
@@ -463,8 +470,9 @@ function CsvEntry({
 
       {weightColumn && usableRows < sheet.rows.length && (
         <div className="banner banner-warn">
-          {sheet.rows.length - usableRows} row(s) have a blank, zero or negative
-          value in “{weightColumn}” and will be dropped.
+          {usableRows === 0
+            ? `No positive values in “${weightColumn}”. Using equal weights.`
+            : `${sheet.rows.length - usableRows} row(s) have a blank, zero or negative value in “${weightColumn}”. Tickers without a positive combined value will be dropped.`}
         </div>
       )}
 

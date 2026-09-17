@@ -37,6 +37,7 @@ export function RebalanceSection({
   const [side, setSide] = useState<Side>("SELL");
   const [source, setSource] = useState<TargetSource>({ kind: "tickers", symbols: [] });
   const [capAt5Pct, setCapAt5Pct] = useState(false);
+  const [invertWeights, setInvertWeights] = useState(false);
   const [cashOverride, setCashOverride] = useState("");
   const [plan, setPlan] = useState<Plan | null>(null);
   const [planning, setPlanning] = useState(false);
@@ -80,6 +81,7 @@ export function RebalanceSection({
         side,
         targets,
         weightMode,
+        invertWeights: weightMode === "column" && invertWeights,
         capAt5Pct: over?.capAt5Pct ?? capAt5Pct,
         cashBufferPct: 0,
         minOrderValue: 0,
@@ -141,7 +143,7 @@ export function RebalanceSection({
           source.kind === "csv"
             ? `${source.sheet.fileName} · ${targets.length} rows`
             : `${targets.length} ticker${targets.length === 1 ? "" : "s"}`,
-          weightColumn ? `weights from “${weightColumn}”` : "equal weights",
+          weightColumn ? `${invertWeights ? "inverse weights" : "weights"} from “${weightColumn}”` : "equal weights",
           capAt5Pct ? "capped at 5%" : null,
           side === "BUY" && cashOverride.trim() ? `₹${cashOverride.trim()} to deploy` : null,
         ]
@@ -214,13 +216,35 @@ export function RebalanceSection({
             source={source}
             onChange={(s) => {
               setSource(s);
+              if (s.kind !== "csv" || !s.weightColumn) setInvertWeights(false);
               invalidate();
             }}
             notify={notify}
             capAt5Pct={capAt5Pct}
+            invertWeights={invertWeights}
           />
 
           <div className="step-panel">
+            {weightColumn && (
+              <div className="row" style={{ gap: 10 }}>
+                <Switch
+                  checked={invertWeights}
+                  onChange={(v) => {
+                    setInvertWeights(v);
+                    invalidate();
+                  }}
+                  label="Invert weights"
+                />
+                <div>
+                  <div style={{ fontSize: 13.5, fontWeight: 500 }}>Invert weights</div>
+                  <div className="sub">Lower values get larger weights</div>
+                </div>
+                <Help>
+                  Weights are proportional to 1 / value. For example, volatility
+                  of 10 gets twice the weight of 20. The 5% cap applies afterward.
+                </Help>
+              </div>
+            )}
             <div className="row" style={{ gap: 10 }}>
               <Switch
                 checked={capAt5Pct}
@@ -250,10 +274,10 @@ export function RebalanceSection({
             <div className="row" style={{ gap: 8 }}>
               <span className="sub">Weights</span>
               <span className="pill">
-                {weightColumn ? `From “${weightColumn}”` : "Equal"}
+                {weightColumn ? `${invertWeights ? "Inverse of" : "From"} “${weightColumn}”` : "Equal"}
                 <Help align="right">
                   {weightColumn
-                    ? "Read from your CSV and locked — edit the file and re-upload to change them."
+                    ? "Choose a CSV column above. Turn on Invert weights to give lower values larger allocations."
                     : "Every stock in the basket gets an identical share."}
                 </Help>
               </span>
