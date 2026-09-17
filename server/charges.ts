@@ -4,8 +4,8 @@ import type { DhanOrder } from "./dhan.ts";
  * NSE cash CNC (delivery) charges Dhan posts after fills.
  *
  * Dhan's /margincalculator returns brokerage and SPAN-style margin, not these
- * statutory line items — so a plan that spends every rupee of available
- * balance goes negative when STT, stamp and exchange fees hit.
+ * statutory line items. Reserve an estimate because the funds API does not
+ * specify which fees it already reflects. This can hold back extra cash.
  *
  * Rates match Dhan's equity-delivery table (https://dhan.co/pricing/, checked
  * Sep 2026) and NSE circular NSE/FA/73061 effective 1 Mar 2026. Brokerage on

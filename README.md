@@ -10,7 +10,9 @@ The rebalance planner takes a target basket (typed, pasted, or CSV) and computes
 
 The planner estimates NSE delivery charges using [Dhan's pricing](https://dhan.co/pricing/). Sell estimates include DP charges of ₹12.50 plus GST per executed sell order. Before sizing buys, it reserves estimated charges from today's filled NSE CNC orders, including earlier buys and sells. Sell previews show proceeds after estimated charges. Recalculate after sales fill to use the balance Dhan makes available; unfilled sale proceeds are never added to buying power.
 
-The reserve comes from Dhan's current day order book, so it also covers orders placed outside this app and resets with that book on the next trading day. It applies to cash overrides too. Estimates assume ordinary equity delivery, and can exceed actual charges when Dhan groups DP debits, applies ETF exemptions, or has already deducted fees from the available balance.
+The reserve comes from Dhan's current day order book, so it also covers orders placed outside this app. It applies to cash overrides too. Estimates assume ordinary equity delivery, and can exceed actual charges when Dhan groups DP debits, applies ETF exemptions, or has already deducted fees from the available balance.
+
+This is a same-day planning buffer, not a record of unpaid charges. It resets with the day order book and does not carry yesterday's DP estimate forward. Dhan says [trading charges are applied at the end of the day](https://dhan.co/support/statements-and-ledger/my-ledger/why-is-the-profit-shown-in-the-ledger-less-than-the-one-shown-under-the-positions-tab/) and [sell DP charges are debited on T+1](https://madefortrade.in/t/understanding-dp-depository-and-pledge-charges/50575). The [funds API](https://dhanhq.co/docs/v2/funds/) does not specify whether available buying power already includes estimated fees. A new day's plan therefore depends on the refreshed Dhan balance reflecting earlier charges. The app does not verify that settlement has completed.
 
 ## Requirements
 
@@ -127,6 +129,14 @@ bun run typecheck
 ```
 
 Stack: Bun, Hono, SQLite on the server; React 19, Vite on the client. Dhan API for orders and holdings; Yahoo Finance for day-change quotes.
+
+### Audit charge deductions
+
+Run `bun run audit:charges` to save a read-only snapshot using the account connected in Settings. An optional number sets the history window, for example `bun run audit:charges 35`. The command reads funds, today's orders, trade history and the ledger. It never places orders or changes the planner's reserve.
+
+Reports are saved privately under `data/charge-audits/`, which Git ignores. They contain financial totals but omit credentials, client IDs, order IDs and stock symbols. Keep them private. To check how buying power handles charges, capture snapshots before a planned sale, after it fills, and the next trading morning. Account for any other trades or fund transfers between snapshots.
+
+The report separates historical trading charges from ledger postings. It does not mark fees as paid: DP ledger entries can combine sell, pledge and unpledge charges, and API calls are not an atomic snapshot. Missing fee fields and trade totals containing zero-price records are reported as unknown. No personal account evidence is included in this repository.
 
 ## License
 

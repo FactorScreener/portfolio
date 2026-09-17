@@ -170,7 +170,35 @@ export type DhanTrade = {
   tradedPrice: number;
   customSymbol?: string | null;
   tradingSymbol?: string | null;
+  exchangeSegment?: string;
+  productType?: string;
+  exchangeTime?: string;
+  sebiTax?: number | string;
+  stt?: number | string;
+  brokerageCharges?: number | string;
+  serviceTax?: number | string;
+  exchangeTransactionCharges?: number | string;
+  stampDuty?: number | string;
 };
+
+export type DhanLedgerEntry = {
+  narration: string;
+  voucherdate: string;
+  exchange: string;
+  voucherdesc: string;
+  debit: string;
+  credit: string;
+};
+
+/** Read-only report. Narration does not identify which sell a DP debit pays. */
+export async function getLedger(creds: Credentials, fromDate: string, toDate: string) {
+  const rows = await call<DhanLedgerEntry[]>(
+    creds,
+    `/ledger?from-date=${fromDate}&to-date=${toDate}`,
+  );
+  if (!Array.isArray(rows)) throw new Error("Dhan returned an invalid ledger report.");
+  return rows;
+}
 
 /** Paginated fills across a date range. Dhan's day order book does not keep
  *  yesterday; this is how a past rebalance is confirmed. */
@@ -185,10 +213,11 @@ export async function getTradeHistory(
       creds,
       `/trades/${fromDate}/${toDate}/${page}`,
     );
-    if (!Array.isArray(rows) || rows.length === 0) break;
+    if (!Array.isArray(rows)) throw new Error("Dhan returned an invalid trade history report.");
+    if (rows.length === 0) return out;
     out.push(...rows);
   }
-  return out;
+  throw new Error("Trade history exceeded 50 pages. Request a shorter date range.");
 }
 
 export function cancelOrder(creds: Credentials, orderId: string) {
